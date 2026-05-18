@@ -17,6 +17,7 @@ import SubmitTool from './components/SubmitTool';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
+import AdminPage from './pages/AdminPage';
 
 function HomePage() {
   return (
@@ -42,6 +43,7 @@ function App() {
         <Route path="/connexion" element={<LoginPage />} />
         <Route path="/inscription" element={<RegisterPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Routes>
       <Chatbot />
     </BrowserRouter>
