@@ -18,6 +18,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
+import ToolDetailsPage from './pages/ToolDetailsPage';
 
 function HomePage() {
   return (
@@ -44,6 +45,7 @@ function App() {
         <Route path="/inscription" element={<RegisterPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/tool/:id" element={<ToolDetailsPage />} />
       </Routes>
       <Chatbot />
     </BrowserRouter>

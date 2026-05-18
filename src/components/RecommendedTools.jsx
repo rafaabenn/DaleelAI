@@ -9,9 +9,11 @@ function StarIcon({ filled }) {
   );
 }
 
+import { Link } from 'react-router-dom';
+
 export function ToolCard({ tool }) {
   return (
-    <div className="tool-card">
+    <Link to={`/tool/${tool.id}`} className="tool-card" style={{ textDecoration: 'none' }}>
       <div className="tool-card-header">
         <div className="tool-avatar" style={{ backgroundColor: tool.avatarColor }}>
           {tool.avatar}
@@ -38,7 +40,7 @@ export function ToolCard({ tool }) {
           </span>
         ))}
       </div>
-    </div>
+    </Link>
   );
 }
 
