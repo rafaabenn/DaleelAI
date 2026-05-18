@@ -19,6 +19,8 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
 import ToolDetailsPage from './pages/ToolDetailsPage';
+import UserProfilePage from './pages/UserProfilePage';
+import AdminProfilePage from './pages/AdminProfilePage';
 
 function HomePage() {
   return (
@@ -44,7 +46,9 @@ function App() {
         <Route path="/connexion" element={<LoginPage />} />
         <Route path="/inscription" element={<RegisterPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/profile" element={<UserProfilePage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/profile" element={<AdminProfilePage />} />
         <Route path="/tool/:id" element={<ToolDetailsPage />} />
       </Routes>
       <Chatbot />
