@@ -15,35 +15,11 @@ import AdminDashboard from './pages/AdminDashboard';
 import { api } from './services/api';
 
 function App() {
-    const getPageFromHash = () => {
-        const hash = window.location.hash.replace('#', '').toLowerCase();
-        const validPages = ['home', 'login', 'register', 'dashboard', 'admin'];
-        return validPages.includes(hash) ? hash : 'home';
-    };
-
-    const [page, setPageState] = useState(getPageFromHash());
+    const [page, setPage] = useState('home');
     const [user, setUser] = useState(null);
     const [favorites, setFavorites] = useState([]);
     const [chatbotOpen, setChatbotOpen] = useState(false);
     const [trialTool, setTrialTool] = useState(null);
-
-    const setPage = (target) => {
-        const normalized = target ? target.toLowerCase() : 'home';
-        const validPages = ['home', 'login', 'register', 'dashboard', 'admin'];
-        const nextPage = validPages.includes(normalized) ? normalized : 'home';
-        window.location.hash = nextPage;
-        setPageState(nextPage);
-    };
-
-    // React to hash changes for direct navigation
-    useEffect(() => {
-        const handleHashChange = () => {
-            setPageState(getPageFromHash());
-        };
-
-        window.addEventListener('hashchange', handleHashChange);
-        return () => window.removeEventListener('hashchange', handleHashChange);
-    }, []);
 
     // Restore session from localStorage on mount
     useEffect(() => {
