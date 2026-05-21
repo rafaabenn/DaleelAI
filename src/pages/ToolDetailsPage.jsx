@@ -12,7 +12,7 @@ import {
   ArrowLeft,
   Info
 } from '@phosphor-icons/react';
-import './ToolDetailsPage.css';
+import '../styles/pages/ToolDetailsPage.css';
 
 export default function ToolDetailsPage() {
   const { id } = useParams();
@@ -34,8 +34,8 @@ export default function ToolDetailsPage() {
         <main className="tool-not-found">
           <div className="not-found-content">
             <h2>Outil introuvable</h2>
-            <p>L'outil que vous recherchez n'existe pas ou a été supprimé.</p>
-            <Link to="/" className="btn-primary">Retour à l'accueil</Link>
+            <p>L'outil que vous recherchez n'existe pas ou a Ã©tÃ© supprimÃ©.</p>
+            <Link to="/" className="btn-primary">Retour Ã  l'accueil</Link>
           </div>
         </main>
         <Footer />
@@ -45,10 +45,10 @@ export default function ToolDetailsPage() {
 
   // Mock data for extended details
   const mockFeatures = [
-    "Interface intuitive et facile à utiliser",
-    "Génération ultra-rapide grâce à l'IA optimisée",
-    "Support client réactif 24/7",
-    "Intégration API disponible pour les développeurs"
+    "Interface intuitive et facile Ã  utiliser",
+    "GÃ©nÃ©ration ultra-rapide grÃ¢ce Ã  l'IA optimisÃ©e",
+    "Support client rÃ©actif 24/7",
+    "IntÃ©gration API disponible pour les dÃ©veloppeurs"
   ];
 
   return (
@@ -82,8 +82,8 @@ export default function ToolDetailsPage() {
               <div className="tool-hero-title-row">
                 <h1 className="tool-hero-name">{tool.name}</h1>
                 <div className="tool-hero-badges">
-                  {tool.isTrending && <span className="badge-trending">🔥 Tendance</span>}
-                  {tool.isNew && <span className="badge-new">✨ Nouveau</span>}
+                  {tool.isTrending && <span className="badge-trending">ðŸ”¥ Tendance</span>}
+                  {tool.isNew && <span className="badge-new">âœ¨ Nouveau</span>}
                 </div>
               </div>
               
@@ -117,20 +117,20 @@ export default function ToolDetailsPage() {
           <div className="tool-main-column">
             
             <div className="tool-card-section about-section">
-              <h2>À propos de {tool.name}</h2>
+              <h2>Ã€ propos de {tool.name}</h2>
               <p>
-                {tool.name} est une solution avancée conçue pour révolutionner votre manière de travailler. 
-                Grâce à des algorithmes d'intelligence artificielle de pointe, cet outil vous permet d'automatiser 
-                des tâches complexes, de générer du contenu de haute qualité et de gagner un temps précieux au quotidien.
+                {tool.name} est une solution avancÃ©e conÃ§ue pour rÃ©volutionner votre maniÃ¨re de travailler. 
+                GrÃ¢ce Ã  des algorithmes d'intelligence artificielle de pointe, cet outil vous permet d'automatiser 
+                des tÃ¢ches complexes, de gÃ©nÃ©rer du contenu de haute qualitÃ© et de gagner un temps prÃ©cieux au quotidien.
               </p>
               <p>
-                Que vous soyez un professionnel cherchant à optimiser votre flux de travail ou un passionné explorant 
-                les nouvelles technologies, {tool.name} offre une interface épurée et des fonctionnalités puissantes.
+                Que vous soyez un professionnel cherchant Ã  optimiser votre flux de travail ou un passionnÃ© explorant 
+                les nouvelles technologies, {tool.name} offre une interface Ã©purÃ©e et des fonctionnalitÃ©s puissantes.
               </p>
             </div>
 
             <div className="tool-card-section features-section">
-              <h2>Fonctionnalités Principales</h2>
+              <h2>FonctionnalitÃ©s Principales</h2>
               <ul className="features-list">
                 {mockFeatures.map((feature, idx) => (
                   <li key={idx}>
@@ -142,7 +142,7 @@ export default function ToolDetailsPage() {
             </div>
             
             <div className="tool-card-section visual-demo-section">
-              <h2>Aperçu</h2>
+              <h2>AperÃ§u</h2>
               <div className="demo-placeholder" style={{ borderColor: tool.avatarColor }}>
                 <div className="demo-placeholder-icon" style={{ color: tool.avatarColor }}>
                   {tool.avatar}
@@ -176,7 +176,7 @@ export default function ToolDetailsPage() {
               <h3>Informations Pratiques</h3>
               <ul className="info-list">
                 <li>
-                  <span className="info-label">Modèle Économique</span>
+                  <span className="info-label">ModÃ¨le Ã‰conomique</span>
                   <span className="info-value">{tool.tags.length > 1 ? tool.tags[1].label : 'Gratuit'}</span>
                 </li>
                 <li>
@@ -185,14 +185,14 @@ export default function ToolDetailsPage() {
                 </li>
                 <li>
                   <span className="info-label">Langues</span>
-                  <span className="info-value">Français, Anglais, +10</span>
+                  <span className="info-value">FranÃ§ais, Anglais, +10</span>
                 </li>
               </ul>
             </div>
             
             <div className="verification-card">
               <Info size={24} color="var(--text-muted)" />
-              <p>Ces informations sont mises à jour régulièrement par notre communauté. Si vous constatez une erreur, n'hésitez pas à nous le signaler.</p>
+              <p>Ces informations sont mises Ã  jour rÃ©guliÃ¨rement par notre communautÃ©. Si vous constatez une erreur, n'hÃ©sitez pas Ã  nous le signaler.</p>
             </div>
           </aside>
         </section>

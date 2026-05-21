@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { User } from '@phosphor-icons/react';
 import logo from '../assets/logo.png';
-import './Navbar.css';
+import '../styles/components/Navbar.css';
 
 export default function Navbar({ isLoggedIn = false }) {
   const [active, setActive] = useState('accueil');
@@ -18,7 +18,7 @@ export default function Navbar({ isLoggedIn = false }) {
 
         {/* Links */}
         <ul className="navbar-links">
-          {['Accueil', 'Catégories', 'Collections'].map((item) => (
+          {['Accueil', 'CatÃ©gories', 'Collections'].map((item) => (
             <li key={item}>
               <a
                 href="#"
@@ -41,7 +41,7 @@ export default function Navbar({ isLoggedIn = false }) {
                 </div>
                 <span className="user-name">Mon Profil</span>
               </div>
-              <Link to="/" className="btn-logout">Déconnexion</Link>
+              <Link to="/" className="btn-logout">DÃ©connexion</Link>
             </>
           ) : (
             <>

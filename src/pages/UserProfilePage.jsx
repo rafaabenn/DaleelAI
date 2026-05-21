@@ -15,7 +15,7 @@ import {
   Lock,
   Bell
 } from '@phosphor-icons/react';
-import './UserProfilePage.css';
+import '../styles/pages/UserProfilePage.css';
 
 export default function UserProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
@@ -25,7 +25,7 @@ export default function UserProfilePage() {
     email: 'aya@exemple.com',
     phone: '+33 6 12 34 56 78',
     country: 'France',
-    bio: 'Passionnée par les outils IA et l\'innovation',
+    bio: 'PassionnÃ©e par les outils IA et l\'innovation',
     website: 'https://ayaghammad.com',
     notifications: true,
   });
@@ -63,7 +63,7 @@ export default function UserProfilePage() {
         <section className="profile-hero">
           <div className="profile-hero-inner">
             <h1 className="profile-title">Mon Profil</h1>
-            <p className="profile-subtitle">Gérez vos informations personnelles</p>
+            <p className="profile-subtitle">GÃ©rez vos informations personnelles</p>
           </div>
         </section>
 
@@ -77,7 +77,7 @@ export default function UserProfilePage() {
               </a>
               <a href="/profile/security" className="profile-nav-item">
                 <Lock size={20} />
-                <span>Sécurité</span>
+                <span>SÃ©curitÃ©</span>
               </a>
               <a href="/profile/notifications" className="profile-nav-item">
                 <Bell size={20} />
@@ -85,12 +85,12 @@ export default function UserProfilePage() {
               </a>
               <a href="/profile/preferences" className="profile-nav-item">
                 <Gear size={20} />
-                <span>Préférences</span>
+                <span>PrÃ©fÃ©rences</span>
               </a>
               <div className="profile-nav-divider"></div>
               <a href="/" className="profile-nav-item text-danger">
                 <SignOut size={20} />
-                <span>Déconnexion</span>
+                <span>DÃ©connexion</span>
               </a>
             </nav>
           </aside>
@@ -105,7 +105,7 @@ export default function UserProfilePage() {
                 </div>
                 <div className="profile-header-info">
                   <h2>{formData.firstName} {formData.lastName}</h2>
-                  <p className="profile-plan">Plan Pro • Membre depuis Janvier 2024</p>
+                  <p className="profile-plan">Plan Pro â€¢ Membre depuis Janvier 2024</p>
                 </div>
                 {!isEditing && (
                   <button className="btn-edit" onClick={handleEdit}>
@@ -124,7 +124,7 @@ export default function UserProfilePage() {
                   
                   <div className="form-row">
                     <div className="form-group">
-                      <label htmlFor="firstName">Prénom</label>
+                      <label htmlFor="firstName">PrÃ©nom</label>
                       <input
                         type="text"
                         id="firstName"
@@ -160,7 +160,7 @@ export default function UserProfilePage() {
                   </div>
 
                   <div className="form-group">
-                    <label htmlFor="phone">Téléphone</label>
+                    <label htmlFor="phone">TÃ©lÃ©phone</label>
                     <input
                       type="tel"
                       id="phone"
@@ -251,7 +251,7 @@ export default function UserProfilePage() {
                     <div className="info-item">
                       <span className="info-label">
                         <Phone size={16} />
-                        Téléphone
+                        TÃ©lÃ©phone
                       </span>
                       <span className="info-value">{formData.phone}</span>
                     </div>
@@ -266,7 +266,7 @@ export default function UserProfilePage() {
                 </div>
 
                 <div className="profile-section">
-                  <h3 className="section-title">À Propos</h3>
+                  <h3 className="section-title">Ã€ Propos</h3>
                   <p className="about-text">{formData.bio}</p>
                   {formData.website && (
                     <p className="website-link">

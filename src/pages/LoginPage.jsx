@@ -10,7 +10,7 @@ import {
   GithubLogo
 } from '@phosphor-icons/react';
 import logo from '../assets/logo.png';
-import './AuthPages.css';
+import '../styles/pages/AuthPages.css';
 
 const decoIcons = [
   { Icon: Robot,      className: 'deco deco-1' },
@@ -41,7 +41,7 @@ export default function LoginPage() {
 
         <div className="auth-header">
           <h1 className="auth-title">Bon retour</h1>
-          <p className="auth-subtitle">Connectez-vous à votre compte</p>
+          <p className="auth-subtitle">Connectez-vous Ã  votre compte</p>
         </div>
 
         <div className="social-logins">
@@ -76,13 +76,13 @@ export default function LoginPage() {
           <div className="form-group">
             <label htmlFor="password">
               Mot de passe
-              <a href="#" className="forgot-link">Mot de passe oublié ?</a>
+              <a href="#" className="forgot-link">Mot de passe oubliÃ© ?</a>
             </label>
             <input
               id="password"
               name="password"
               type="password"
-              placeholder="••••••••"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               value={form.password}
               onChange={handleChange}
               required

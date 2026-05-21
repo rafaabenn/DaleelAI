@@ -3,7 +3,7 @@ import Footer from '../components/Footer';
 import { ToolCard } from '../components/RecommendedTools';
 import { recommendedTools } from '../data/tools';
 import { BookmarkSimple, ClockCounterClockwise, User, Gear, SignOut, CaretRight, Star } from '@phosphor-icons/react';
-import './DashboardPage.css';
+import '../styles/pages/DashboardPage.css';
 
 export default function DashboardPage() {
   return (
@@ -16,7 +16,7 @@ export default function DashboardPage() {
           <div className="dashboard-hero-inner">
             <h1 className="dashboard-title">Tableau de bord</h1>
             <p className="dashboard-subtitle">
-              Bienvenue dans votre espace personnel, <strong>Aya</strong> 👋
+              Bienvenue dans votre espace personnel, <strong>Aya</strong> ðŸ‘‹
             </p>
           </div>
         </section>
@@ -57,12 +57,12 @@ export default function DashboardPage() {
               </a>
               <a href="#" className="dash-nav-item">
                 <Gear size={20} />
-                <span>Paramètres</span>
+                <span>ParamÃ¨tres</span>
               </a>
               <div className="dash-nav-divider"></div>
               <a href="/" className="dash-nav-item text-danger">
                 <SignOut size={20} />
-                <span>Déconnexion</span>
+                <span>DÃ©connexion</span>
               </a>
             </nav>
           </aside>
@@ -71,7 +71,7 @@ export default function DashboardPage() {
           <div className="dashboard-tools">
             <div className="dashboard-section-header">
               <h2>Mes outils favoris</h2>
-              <button className="btn-manage">Gérer</button>
+              <button className="btn-manage">GÃ©rer</button>
             </div>
             
             <div className="tools-grid">

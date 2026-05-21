@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { suggestionPills } from '../data/tools';
 import { Sparkle, MagnifyingGlass } from '@phosphor-icons/react';
-import './Hero.css';
+import '../styles/components/Hero.css';
 
 export default function Hero() {
   const [query, setQuery] = useState('');
@@ -11,7 +11,7 @@ export default function Hero() {
       <div className="hero-inner">
         <h1 className="hero-title">Le bon outil IA pour chaque besoin</h1>
         <p className="hero-subtitle">
-          Plus de <strong>50 outils</strong> classés, comparés et recommandés
+          Plus de <strong>50 outils</strong> classÃ©s, comparÃ©s et recommandÃ©s
         </p>
 
         <div className="hero-search-wrapper">

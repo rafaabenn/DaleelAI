@@ -10,7 +10,7 @@ import {
   GithubLogo
 } from '@phosphor-icons/react';
 import logo from '../assets/logo.png';
-import './AuthPages.css';
+import '../styles/pages/AuthPages.css';
 
 const decoIcons = [
   { Icon: Robot,      className: 'deco deco-1' },
@@ -40,8 +40,8 @@ export default function RegisterPage() {
         </Link>
 
         <div className="auth-header">
-          <h1 className="auth-title">Créer un compte</h1>
-          <p className="auth-subtitle">Rejoignez la communauté Daleel AI</p>
+          <h1 className="auth-title">CrÃ©er un compte</h1>
+          <p className="auth-subtitle">Rejoignez la communautÃ© Daleel AI</p>
         </div>
 
         <div className="social-logins">
@@ -92,7 +92,7 @@ export default function RegisterPage() {
               id="password"
               name="password"
               type="password"
-              placeholder="••••••••"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               value={form.password}
               onChange={handleChange}
               required
@@ -105,7 +105,7 @@ export default function RegisterPage() {
               id="confirm"
               name="confirm"
               type="password"
-              placeholder="••••••••"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               value={form.confirm}
               onChange={handleChange}
               required
@@ -113,12 +113,12 @@ export default function RegisterPage() {
           </div>
 
           <button type="submit" className="auth-btn">
-            Créer mon compte
+            CrÃ©er mon compte
           </button>
         </form>
 
         <p className="auth-switch">
-          Déjà un compte ?{' '}
+          DÃ©jÃ  un compte ?{' '}
           <Link to="/connexion" className="auth-switch-link">Se connecter</Link>
         </p>
       </div>

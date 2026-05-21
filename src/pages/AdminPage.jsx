@@ -15,7 +15,7 @@ import {
   Funnel,
   Star
 } from '@phosphor-icons/react';
-import './AdminPage.css';
+import '../styles/pages/AdminPage.css';
 
 export default function AdminPage() {
   const [tools, setTools] = useState(recommendedTools);
@@ -57,7 +57,7 @@ export default function AdminPage() {
             </a>
             <a href="#" className="admin-nav-item">
               <Gear size={20} />
-              <span>Paramètres</span>
+              <span>ParamÃ¨tres</span>
             </a>
             <div className="admin-nav-divider"></div>
             <a href="/" className="admin-nav-item text-danger">
@@ -72,7 +72,7 @@ export default function AdminPage() {
           <header className="admin-header">
             <div>
               <h1 className="admin-title">Gestion des Outils</h1>
-              <p className="admin-subtitle">Gérez la bibliothèque d'outils IA du répertoire.</p>
+              <p className="admin-subtitle">GÃ©rez la bibliothÃ¨que d'outils IA du rÃ©pertoire.</p>
             </div>
             <div className="admin-header-actions">
               <button className="btn-primary">
@@ -105,7 +105,7 @@ export default function AdminPage() {
               <thead>
                 <tr>
                   <th>Outil</th>
-                  <th>Catégorie</th>
+                  <th>CatÃ©gorie</th>
                   <th>Prix</th>
                   <th>Note</th>
                   <th>Actions</th>
@@ -164,7 +164,7 @@ export default function AdminPage() {
                 {filteredTools.length === 0 && (
                   <tr>
                     <td colSpan="5" className="text-center py-4">
-                      Aucun outil trouvé.
+                      Aucun outil trouvÃ©.
                     </td>
                   </tr>
                 )}

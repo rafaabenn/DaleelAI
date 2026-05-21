@@ -1,5 +1,5 @@
 import { recommendedTools } from '../data/tools';
-import './RecommendedTools.css';
+import '../styles/components/RecommendedTools.css';
 
 function StarIcon({ filled }) {
   return (
@@ -44,7 +44,7 @@ export function ToolCard({ tool }) {
   );
 }
 
-export default function RecommendedTools({ title = "Outils recommandés" }) {
+export default function RecommendedTools({ title = "Outils recommandÃ©s" }) {
   return (
     <section className="recommended-section">
       <div className="section-inner">

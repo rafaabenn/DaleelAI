@@ -16,7 +16,7 @@ import {
   Users,
   MagnifyingGlass
 } from '@phosphor-icons/react';
-import './AdminProfilePage.css';
+import '../styles/pages/AdminProfilePage.css';
 
 export default function AdminProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
@@ -26,7 +26,7 @@ export default function AdminProfilePage() {
     email: 'admin@exemple.com',
     phone: '+33 6 87 65 43 21',
     role: 'Super Administrateur',
-    permissions: ['Gestion des outils', 'Gestion des utilisateurs', 'Paramètres système', 'Modération'],
+    permissions: ['Gestion des outils', 'Gestion des utilisateurs', 'ParamÃ¨tres systÃ¨me', 'ModÃ©ration'],
     joinDate: 'Janvier 2023',
     totalUsers: 1250,
     totalTools: 342,
@@ -88,7 +88,7 @@ export default function AdminProfilePage() {
             </a>
             <a href="/admin/settings" className="admin-profile-nav-item">
               <Gear size={20} />
-              <span>Paramètres</span>
+              <span>ParamÃ¨tres</span>
             </a>
             <div className="admin-profile-nav-divider"></div>
             <a href="/" className="admin-profile-nav-item text-danger">
@@ -103,7 +103,7 @@ export default function AdminProfilePage() {
           <header className="admin-profile-header">
             <div>
               <h1 className="admin-profile-title">Profil Administrateur</h1>
-              <p className="admin-profile-subtitle">Gérez votre compte administrateur</p>
+              <p className="admin-profile-subtitle">GÃ©rez votre compte administrateur</p>
             </div>
             {!isEditing && (
               <button className="btn-edit-profile" onClick={handleEdit}>
@@ -172,7 +172,7 @@ export default function AdminProfilePage() {
                 
                 <div className="form-row">
                   <div className="form-group">
-                    <label htmlFor="firstName">Prénom</label>
+                    <label htmlFor="firstName">PrÃ©nom</label>
                     <input
                       type="text"
                       id="firstName"
@@ -208,7 +208,7 @@ export default function AdminProfilePage() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="phone">Téléphone</label>
+                  <label htmlFor="phone">TÃ©lÃ©phone</label>
                   <input
                     type="tel"
                     id="phone"
@@ -220,7 +220,7 @@ export default function AdminProfilePage() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="role">Rôle</label>
+                  <label htmlFor="role">RÃ´le</label>
                   <input
                     type="text"
                     id="role"
@@ -231,7 +231,7 @@ export default function AdminProfilePage() {
                     disabled
                     style={{ opacity: 0.6, cursor: 'not-allowed' }}
                   />
-                  <small style={{ color: '#7a7060' }}>Le rôle ne peut pas être modifié</small>
+                  <small style={{ color: '#7a7060' }}>Le rÃ´le ne peut pas Ãªtre modifiÃ©</small>
                 </div>
               </div>
 
@@ -277,14 +277,14 @@ export default function AdminProfilePage() {
                   <div className="admin-info-item">
                     <span className="admin-info-label">
                       <Phone size={16} />
-                      Téléphone
+                      TÃ©lÃ©phone
                     </span>
                     <span className="admin-info-value">{adminData.phone}</span>
                   </div>
                   <div className="admin-info-item">
                     <span className="admin-info-label">
                       <ShieldCheck size={16} />
-                      Rôle
+                      RÃ´le
                     </span>
                     <span className="admin-info-value">{adminData.role}</span>
                   </div>
@@ -311,8 +311,8 @@ export default function AdminProfilePage() {
               <ShieldCheck size={20} weight="fill" />
             </div>
             <div className="alert-content">
-              <h4>Sécurité de Compte</h4>
-              <p>Authentification à deux facteurs: <strong>Activée</strong></p>
+              <h4>SÃ©curitÃ© de Compte</h4>
+              <p>Authentification Ã  deux facteurs: <strong>ActivÃ©e</strong></p>
             </div>
           </div>
         </div>

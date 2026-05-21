@@ -1,7 +1,7 @@
 import logo from '../assets/logo.png';
 import ilisiLogo from '../assets/ilisi_logo.png';
 import fstmLogo from '../assets/fstm_logo.png';
-import './Footer.css';
+import '../styles/components/Footer.css';
 
 export default function Footer() {
   return (
@@ -42,7 +42,7 @@ export default function Footer() {
 
       {/* Bottom bar */}
       <div className="footer-bottom">
-        <span>© 2026 Daleel AI. All rights reserved.</span>
+        <span>Â© 2026 Daleel AI. All rights reserved.</span>
         <div className="footer-legal">
           <a href="#">Privacy Policy</a>
           <a href="#">Terms of Service</a>

@@ -8,7 +8,7 @@ import {
   Sparkle,
   ArrowRight,
 } from '@phosphor-icons/react';
-import './SubmitTool.css';
+import '../styles/components/SubmitTool.css';
 
 const floatingIcons = [
   { top: '10%',  left: '3%',   Icon: Robot,     size: 44, opacity: 0.28 },

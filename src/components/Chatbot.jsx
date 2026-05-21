@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Robot, X, PaperPlaneRight } from '@phosphor-icons/react';
-import './Chatbot.css';
+import '../styles/components/Chatbot.css';
 
 export default function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { id: 1, sender: 'bot', text: 'Bonjour ! 👋 Comment puis-je vous aider à trouver le meilleur outil IA aujourd\'hui ?' }
+    { id: 1, sender: 'bot', text: 'Bonjour ! ðŸ‘‹ Comment puis-je vous aider Ã  trouver le meilleur outil IA aujourd\'hui ?' }
   ]);
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
@@ -30,14 +30,14 @@ export default function Chatbot() {
     setTimeout(() => {
       setMessages((prev) => [
         ...prev,
-        { id: Date.now(), sender: 'bot', text: "Je suis une version de démonstration, mais bientôt je pourrai vous conseiller les meilleurs outils selon vos besoins !" }
+        { id: Date.now(), sender: 'bot', text: "Je suis une version de dÃ©monstration, mais bientÃ´t je pourrai vous conseiller les meilleurs outils selon vos besoins !" }
       ]);
     }, 1000);
   };
 
   return (
     <div className="chatbot-container">
-      {/* Fenêtre de chat */}
+      {/* FenÃªtre de chat */}
       <div className={`chatbot-window ${isOpen ? 'open' : ''}`}>
         <div className="chatbot-header">
           <div className="chatbot-header-info">

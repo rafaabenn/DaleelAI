@@ -1,4 +1,4 @@
-import './DiscoveryOfDay.css';
+import '../styles/components/DiscoveryOfDay.css';
 
 export default function DiscoveryOfDay() {
   return (
@@ -11,10 +11,10 @@ export default function DiscoveryOfDay() {
             </svg>
           </div>
           <div className="discovery-content">
-            <span className="discovery-label">DÉCOUVERTE DU JOUR</span>
+            <span className="discovery-label">DÃ‰COUVERTE DU JOUR</span>
             <h3 className="discovery-name">Perplexity AI</h3>
             <p className="discovery-desc">
-              Un moteur de recherche IA qui cite ses sources. Idéal pour la recherche académique.
+              Un moteur de recherche IA qui cite ses sources. IdÃ©al pour la recherche acadÃ©mique.
             </p>
           </div>
         </div>
