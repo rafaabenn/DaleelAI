@@ -2,7 +2,7 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { ToolCard } from '../components/RecommendedTools';
 import { recommendedTools } from '../data/tools';
-import { BookmarkSimple, ClockCounterClockwise } from '@phosphor-icons/react';
+import { BookmarkSimple, ClockCounterClockwise, User, Gear, SignOut, CaretRight, Star } from '@phosphor-icons/react';
 import './DashboardPage.css';
 
 export default function DashboardPage() {
@@ -22,27 +22,49 @@ export default function DashboardPage() {
         </section>
 
         <div className="dashboard-content">
-          {/* Sidebar / Quick Stats */}
+          {/* Sidebar */}
           <aside className="dashboard-sidebar">
-            <div className="stat-card">
-              <div className="stat-icon-wrapper bookmark">
-                <BookmarkSimple size={24} weight="duotone" />
+            <div className="dashboard-profile-card">
+              <div className="profile-card-header">
+                <div className="profile-avatar-large">
+                  A
+                </div>
+                <div className="profile-info">
+                  <h3>Aya Ghammad</h3>
+                  <p>aya@exemple.com</p>
+                </div>
               </div>
-              <div className="stat-info">
-                <span className="stat-value">12</span>
-                <span className="stat-label">Outils sauvegardés</span>
-              </div>
-            </div>
-            
-            <div className="stat-card">
-              <div className="stat-icon-wrapper history">
-                <ClockCounterClockwise size={24} weight="duotone" />
-              </div>
-              <div className="stat-info">
-                <span className="stat-value">5</span>
-                <span className="stat-label">Outils consultés</span>
+              <div className="profile-badge">
+                <Star size={14} weight="fill" />
+                Plan Pro
               </div>
             </div>
+
+            <nav className="dashboard-nav">
+              <a href="#" className="dash-nav-item active">
+                <BookmarkSimple size={20} />
+                <span>Mes Favoris</span>
+                <span className="dash-badge">12</span>
+              </a>
+              <a href="#" className="dash-nav-item">
+                <ClockCounterClockwise size={20} />
+                <span>Historique</span>
+                <span className="dash-badge">5</span>
+              </a>
+              <a href="#" className="dash-nav-item">
+                <User size={20} />
+                <span>Mon Profil</span>
+              </a>
+              <a href="#" className="dash-nav-item">
+                <Gear size={20} />
+                <span>Paramètres</span>
+              </a>
+              <div className="dash-nav-divider"></div>
+              <a href="/" className="dash-nav-item text-danger">
+                <SignOut size={20} />
+                <span>Déconnexion</span>
+              </a>
+            </nav>
           </aside>
 
           {/* Main Dashboard Area */}

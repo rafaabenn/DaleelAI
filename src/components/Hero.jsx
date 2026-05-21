@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { suggestionPills } from '../data/tools';
+import { Sparkle, MagnifyingGlass } from '@phosphor-icons/react';
 import './Hero.css';
 
 export default function Hero() {
@@ -16,10 +17,7 @@ export default function Hero() {
         <div className="hero-search-wrapper">
           <div className="hero-search-box">
             <span className="search-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+              <Sparkle size={24} weight="duotone" color="#C9A84C" />
             </span>
             <input
               type="text"
@@ -28,7 +26,10 @@ export default function Hero() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            <button className="search-btn">Rechercher</button>
+            <button className="search-btn">
+              <MagnifyingGlass size={20} weight="bold" className="search-btn-icon" />
+              <span>Rechercher</span>
+            </button>
           </div>
         </div>
 

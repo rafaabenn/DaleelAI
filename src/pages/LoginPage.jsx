@@ -6,6 +6,8 @@ import {
   Sparkle,
   MagicWand,
   Lightbulb,
+  GoogleLogo,
+  GithubLogo
 } from '@phosphor-icons/react';
 import logo from '../assets/logo.png';
 import './AuthPages.css';
@@ -40,6 +42,21 @@ export default function LoginPage() {
         <div className="auth-header">
           <h1 className="auth-title">Bon retour</h1>
           <p className="auth-subtitle">Connectez-vous à votre compte</p>
+        </div>
+
+        <div className="social-logins">
+          <button type="button" className="social-btn">
+            <GoogleLogo size={20} weight="bold" />
+            Google
+          </button>
+          <button type="button" className="social-btn">
+            <GithubLogo size={20} weight="fill" />
+            GitHub
+          </button>
+        </div>
+
+        <div className="auth-separator">
+          <span>Ou connectez-vous avec un e-mail</span>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>

@@ -6,6 +6,8 @@ import {
   Sparkle,
   MagicWand,
   Lightbulb,
+  GoogleLogo,
+  GithubLogo
 } from '@phosphor-icons/react';
 import logo from '../assets/logo.png';
 import './AuthPages.css';
@@ -40,6 +42,21 @@ export default function RegisterPage() {
         <div className="auth-header">
           <h1 className="auth-title">Créer un compte</h1>
           <p className="auth-subtitle">Rejoignez la communauté Daleel AI</p>
+        </div>
+
+        <div className="social-logins">
+          <button type="button" className="social-btn">
+            <GoogleLogo size={20} weight="bold" />
+            Google
+          </button>
+          <button type="button" className="social-btn">
+            <GithubLogo size={20} weight="fill" />
+            GitHub
+          </button>
+        </div>
+
+        <div className="auth-separator">
+          <span>Ou inscrivez-vous avec un e-mail</span>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>

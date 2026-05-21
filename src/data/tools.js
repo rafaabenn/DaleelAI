@@ -14,11 +14,12 @@ export const recommendedTools = [
     description: 'Assistant conversationnel polyvalent',
     rating: 4.8,
     avatar: 'C',
-    avatarColor: '#4A7BA8',
+    avatarColor: '#5B8FBF',
     tags: [
-      { label: 'Texte', color: '#4A7BA8' },
-      { label: 'Premium', color: '#C9A84C' },
+      { label: 'Texte', color: '#5B8FBF' },
+      { label: 'Freemium', color: '#C9A84C' }
     ],
+    isTrending: true
   },
   {
     id: 2,
@@ -26,24 +27,64 @@ export const recommendedTools = [
     description: "Génération d'images haute qualité",
     rating: 4.6,
     avatar: 'M',
-    avatarColor: '#E8734A',
+    avatarColor: '#D4865E',
     tags: [
-      { label: 'Image', color: '#E8734A' },
-      { label: 'Payant', color: '#888' },
+      { label: 'Image', color: '#D4865E' },
+      { label: 'Payant', color: '#888' }
     ],
+    isNew: true
   },
   {
     id: 3,
-    name: 'Gemini',
-    description: "Assistant IA multimodal de Google",
-    rating: 4.5,
-    avatar: 'G',
-    avatarColor: '#C9A84C',
+    name: 'Claude 3',
+    description: 'Analyse et rédaction avancée',
+    rating: 4.9,
+    avatar: 'C',
+    avatarColor: '#D4B85E',
     tags: [
-      { label: 'Texte', color: '#4A7BA8' },
-      { label: 'Gratuit', color: '#3D9A6B' },
+      { label: 'Texte', color: '#D4B85E' },
+      { label: 'Freemium', color: '#C9A84C' }
     ],
+    isTrending: true
   },
+  {
+    id: 4,
+    name: 'Synthesia',
+    description: 'Création de vidéos avec avatars IA',
+    rating: 4.5,
+    avatar: 'S',
+    avatarColor: '#71A07A',
+    tags: [
+      { label: 'Vidéo', color: '#71A07A' },
+      { label: 'Payant', color: '#888' }
+    ]
+  },
+  {
+    id: 5,
+    name: 'ElevenLabs',
+    description: 'Génération de voix ultra-réalistes',
+    rating: 4.7,
+    avatar: 'E',
+    avatarColor: '#A071A0',
+    tags: [
+      { label: 'Audio', color: '#A071A0' },
+      { label: 'Freemium', color: '#C9A84C' }
+    ],
+    isNew: true
+  },
+  {
+    id: 6,
+    name: 'GitHub Copilot',
+    description: 'Assistant de programmation IA',
+    rating: 4.8,
+    avatar: 'G',
+    avatarColor: '#65A3C7',
+    tags: [
+      { label: 'Code', color: '#65A3C7' },
+      { label: 'Payant', color: '#888' }
+    ],
+    isTrending: true
+  }
 ];
 
 export const suggestionPills = [

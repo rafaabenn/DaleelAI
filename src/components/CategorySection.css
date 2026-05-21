@@ -1,82 +1,69 @@
 /* ============================================
-   CATEGORY SECTION CSS
+   CATEGORY SECTION CSS (Bento Box Redesign)
    ============================================ */
 
 .category-section {
-  background: #f5f2ec;
-  padding: 52px 24px 40px;
-}
-
-.section-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-.section-title {
-  font-family: 'Outfit', sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-  color: #2c2416;
-  margin: 0 0 28px 0;
+  padding: 56px 24px;
 }
 
 .category-grid {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-top: 24px;
 }
 
-/* Chaque carte prend une part égale */
 .category-card {
-  flex: 1 1 0;
-  min-width: 80px;
+  background: #ffffff;
+  border: 1px solid #e8e2d8;
+  border-radius: 20px;
+  padding: 24px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 16px;
   text-decoration: none;
-  cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
 .category-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  border-color: #d0c8ba;
 }
 
 .category-icon-wrapper {
-  width: 72px;
-  height: 72px;
-  border-radius: 18px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: box-shadow 0.2s ease;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
 }
 
 .category-card:hover .category-icon-wrapper {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
-}
-
-.category-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  width: 28px;
-  height: 28px;
-}
-
-.category-icon svg {
-  width: 28px;
-  height: 28px;
-  stroke: #fff;
+  transform: scale(1.05);
 }
 
 .category-label {
-  font-size: 13px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
   font-weight: 600;
-  color: #3a3020;
-  font-family: 'Inter', sans-serif;
+  color: #1e1a11;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .category-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .category-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
