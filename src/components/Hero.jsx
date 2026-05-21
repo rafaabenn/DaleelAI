@@ -11,7 +11,7 @@ export default function Hero() {
       <div className="hero-inner">
         <h1 className="hero-title">Le bon outil IA pour chaque besoin</h1>
         <p className="hero-subtitle">
-          Plus de <strong>50 outils</strong> classÃ©s, comparÃ©s et recommandÃ©s
+          Plus de <strong>50 outils</strong> classés, comparés et recommandés
         </p>
 
         <div className="hero-search-wrapper">

@@ -22,7 +22,7 @@ export default function CategorySection() {
   return (
     <section className="category-section">
       <div className="section-inner">
-        <h2 className="section-title">Explorer par catÃ©gorie</h2>
+        <h2 className="section-title">Explorer par catégorie</h2>
         <div className="category-grid">
           {categories.map((cat) => {
             const IconComponent = categoryIcons[cat.id];

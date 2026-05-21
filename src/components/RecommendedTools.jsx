@@ -44,7 +44,7 @@ export function ToolCard({ tool }) {
   );
 }
 
-export default function RecommendedTools({ title = "Outils recommandÃ©s" }) {
+export default function RecommendedTools({ title = "Outils recommandés" }) {
   return (
     <section className="recommended-section">
       <div className="section-inner">
