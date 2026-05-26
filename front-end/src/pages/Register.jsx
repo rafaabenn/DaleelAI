@@ -20,7 +20,7 @@ export default function Register({ onAuthSuccess, setPage }) {
             const res = await api.auth.register(username, email, password);
             if (res.success) {
                 setSuccess("Votre compte universitaire a été créé avec succès ! Authentification en cours...");
-                
+
                 // Immediately auto-login for perfect UX
                 setTimeout(async () => {
                     try {
@@ -126,7 +126,7 @@ export default function Register({ onAuthSuccess, setPage }) {
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#d946ef' }}>
                             Nom d'Utilisateur Académique
@@ -135,11 +135,11 @@ export default function Register({ onAuthSuccess, setPage }) {
                             <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', display: 'flex' }}>
                                 <User size={16} />
                             </div>
-                            <input 
-                                type="text" 
+                            <input
+                                type="text"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                placeholder="ex: Prof.Jean ou Dr.Amine" 
+                                placeholder="ex: Prof.Jean ou Dr.Amine"
                                 className="input-field"
                                 style={{ paddingLeft: '44px' }}
                                 required
@@ -155,11 +155,11 @@ export default function Register({ onAuthSuccess, setPage }) {
                             <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', display: 'flex' }}>
                                 <Mail size={16} />
                             </div>
-                            <input 
-                                type="email" 
+                            <input
+                                type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="votre.nom@univ-paris.fr" 
+                                placeholder="votre.nom@univ-paris.fr"
                                 className="input-field"
                                 style={{ paddingLeft: '44px' }}
                                 required
@@ -175,11 +175,11 @@ export default function Register({ onAuthSuccess, setPage }) {
                             <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', display: 'flex' }}>
                                 <Lock size={16} />
                             </div>
-                            <input 
-                                type="password" 
+                            <input
+                                type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••••••" 
+                                placeholder="••••••••••••"
                                 className="input-field"
                                 style={{ paddingLeft: '44px' }}
                                 required
@@ -187,9 +187,9 @@ export default function Register({ onAuthSuccess, setPage }) {
                         </div>
                     </div>
 
-                    <button 
-                        type="submit" 
-                        className="btn-primary" 
+                    <button
+                        type="submit"
+                        className="btn-primary"
                         disabled={loading}
                         style={{
                             width: '100%',
@@ -215,7 +215,7 @@ export default function Register({ onAuthSuccess, setPage }) {
                     fontSize: '0.88rem'
                 }}>
                     <span style={{ color: '#9ca3af' }}>Vous possédez déjà un compte ?</span>
-                    <button 
+                    <button
                         onClick={() => setPage('login')}
                         style={{
                             background: 'transparent',

@@ -18,7 +18,7 @@ export default function Navbar({ user, onLogout, setPage }) {
             background: 'rgba(16, 17, 26, 0.8)'
         }}>
             {/* Logo / Brand */}
-            <div 
+            <div
                 onClick={() => setPage('home')}
                 style={{
                     display: 'flex',
@@ -62,9 +62,9 @@ export default function Navbar({ user, onLogout, setPage }) {
                 alignItems: 'center',
                 gap: '16px'
             }}>
-                <button 
+                <button
                     onClick={() => setPage('home')}
-                    className="btn-secondary" 
+                    className="btn-secondary"
                     style={{ padding: '8px 16px', fontSize: '0.9rem' }}
                 >
                     <Compass size={16} />
@@ -76,9 +76,9 @@ export default function Navbar({ user, onLogout, setPage }) {
                         {/* Progressive roles rendering */}
                         {user.role_id === 1 ? (
                             /* Admin features */
-                            <button 
+                            <button
                                 onClick={() => setPage('admin')}
-                                className="btn-primary" 
+                                className="btn-primary"
                                 style={{ padding: '8px 16px', fontSize: '0.9rem' }}
                             >
                                 <LayoutDashboard size={16} />
@@ -87,17 +87,17 @@ export default function Navbar({ user, onLogout, setPage }) {
                         ) : (
                             /* Registered user features */
                             <>
-                                <button 
+                                <button
                                     onClick={() => setPage('dashboard')}
-                                    className="btn-secondary" 
+                                    className="btn-secondary"
                                     style={{ padding: '8px 16px', fontSize: '0.9rem' }}
                                 >
                                     <LayoutDashboard size={16} />
                                     Mon Espace
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => setPage('submit')}
-                                    className="btn-primary" 
+                                    className="btn-primary"
                                     style={{ padding: '8px 16px', fontSize: '0.9rem' }}
                                 >
                                     <PlusCircle size={16} />
@@ -122,9 +122,9 @@ export default function Navbar({ user, onLogout, setPage }) {
                                     {user.role_name}
                                 </div>
                             </div>
-                            <button 
+                            <button
                                 onClick={onLogout}
-                                className="btn-danger" 
+                                className="btn-danger"
                                 style={{ padding: '8px', borderRadius: '8px' }}
                                 title="Se déconnecter"
                             >
@@ -135,16 +135,16 @@ export default function Navbar({ user, onLogout, setPage }) {
                 ) : (
                     /* Guest links */
                     <div style={{ display: 'flex', gap: '10px' }}>
-                        <button 
+                        <button
                             onClick={() => setPage('login')}
-                            className="btn-secondary" 
+                            className="btn-secondary"
                             style={{ padding: '8px 16px', fontSize: '0.9rem' }}
                         >
                             Connexion
                         </button>
-                        <button 
+                        <button
                             onClick={() => setPage('register')}
-                            className="btn-primary" 
+                            className="btn-primary"
                             style={{ padding: '8px 18px', fontSize: '0.9rem' }}
                         >
                             Inscription
