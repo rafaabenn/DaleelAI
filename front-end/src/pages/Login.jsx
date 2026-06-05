@@ -102,11 +102,11 @@ export default function Login({ onAuthSuccess, setPage }) {
                             <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', display: 'flex' }}>
                                 <Mail size={16} />
                             </div>
-                            <input 
-                                type="email" 
+                            <input
+                                type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="votre.email@universite.fr" 
+                                placeholder="votre.email@universite.fr"
                                 className="input-field"
                                 style={{ paddingLeft: '44px' }}
                                 required
@@ -124,11 +124,11 @@ export default function Login({ onAuthSuccess, setPage }) {
                             <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', display: 'flex' }}>
                                 <Lock size={16} />
                             </div>
-                            <input 
-                                type="password" 
+                            <input
+                                type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••••••" 
+                                placeholder="••••••••••••"
                                 className="input-field"
                                 style={{ paddingLeft: '44px' }}
                                 required
@@ -136,9 +136,9 @@ export default function Login({ onAuthSuccess, setPage }) {
                         </div>
                     </div>
 
-                    <button 
-                        type="submit" 
-                        className="btn-primary" 
+                    <button
+                        type="submit"
+                        className="btn-primary"
                         disabled={loading}
                         style={{
                             width: '100%',
@@ -164,7 +164,7 @@ export default function Login({ onAuthSuccess, setPage }) {
                     fontSize: '0.88rem'
                 }}>
                     <span style={{ color: '#9ca3af' }}>Vous n'avez pas encore de compte universitaire ?</span>
-                    <button 
+                    <button
                         onClick={() => setPage('register')}
                         style={{
                             background: 'transparent',

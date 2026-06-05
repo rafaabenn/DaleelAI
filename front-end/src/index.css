@@ -5,6 +5,7 @@
    ===================================================================== */
 
 :root {
+
   /* Lighter Dark Palette — Gris-bleu doux au lieu du noir profond */
   --bg-primary: #1a1d2e;       /* était #08090f → gris-bleu foncé */
   --bg-secondary: #222538;     /* était #10111a → un peu plus clair */
@@ -40,6 +41,7 @@
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Texte — légèrement plus lumineux */
+
   --text-primary: #f3f4f6;
   --text-secondary: #b0b8cc;   /* était #9ca3af → plus lisible */
   --text-muted: #7a86a0;       /* était #6b7280 → plus lisible */
@@ -66,7 +68,12 @@ body {
   letter-spacing: -0.01em;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -77,16 +84,21 @@ a {
   text-decoration: none;
 }
 
-button, input, textarea, select {
+button,
+input,
+textarea,
+select {
   font-family: inherit;
   outline: none;
   border: none;
 }
 
+
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
 ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent-purple); }
+
 
 /* =====================================================================
    GLASSMORPHISM & GENERAL UTILITIES
@@ -122,6 +134,7 @@ button, input, textarea, select {
   width: 50vw;
   height: 50vw;
   background: radial-gradient(circle, rgba(168, 85, 247, 0.18) 0%, rgba(59, 130, 246, 0.08) 35%, rgba(0,0,0,0) 70%);
+
   z-index: -1;
   pointer-events: none;
   filter: blur(40px);
@@ -134,6 +147,7 @@ button, input, textarea, select {
   width: 40vw;
   height: 40vw;
   background: radial-gradient(circle, rgba(16, 185, 129, 0.10) 0%, rgba(249, 115, 22, 0.06) 40%, rgba(0,0,0,0) 75%);
+
   z-index: -1;
   pointer-events: none;
   filter: blur(60px);
@@ -512,6 +526,7 @@ button, input, textarea, select {
    ANIMATIONS
    ===================================================================== */
 @keyframes slideUp {
+
   from { transform: translateY(30px); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
 }
@@ -524,6 +539,7 @@ button, input, textarea, select {
 @keyframes zoomIn {
   from { transform: scale(0.95); opacity: 0; }
   to   { transform: scale(1);    opacity: 1; }
+
 }
 
 /* =====================================================================
@@ -553,8 +569,10 @@ button, input, textarea, select {
 .hover-accent-orange:hover { color: var(--accent-orange); border-color: var(--accent-orange); }
 .hover-accent-purple:hover { color: var(--accent-purple); border-color: var(--accent-purple); }
 
+
 .icon-blue   { color: var(--accent-blue);   }
 .icon-green  { color: var(--accent-green);  }
 .icon-orange { color: var(--accent-orange); }
 .icon-yellow { color: var(--accent-yellow); }
 .icon-purple { color: var(--accent-purple); }
+

@@ -192,9 +192,9 @@ INSERT INTO `roles` (`id`, `name`, `description`) VALUES
 -- Insertion des Utilisateurs
 -- Le mot de passe haché ci-dessous correspond à "password123" (généré via bcrypt $2y$10$...)
 INSERT INTO `users` (`id`, `username`, `email`, `password`, `role_id`) VALUES
-(1, 'admin_daleel', 'admin@daleel.ai', '$2y$10$6FvF2Z.4X2g08KexhA4rZeqW1qgK3OQv8W0y5C.3R/qBvV/5lDkS2', 1),
-(2, 'yassine_student', 'yassine@univ.ma', '$2y$10$6FvF2Z.4X2g08KexhA4rZeqW1qgK3OQv8W0y5C.3R/qBvV/5lDkS2', 2),
-(3, 'academic_user', 'academic@daleel.ai', '$2y$10$6FvF2Z.4X2g08KexhA4rZeqW1qgK3OQv8W0y5C.3R/qBvV/5lDkS2', 2);
+(1, 'admin_daleel', 'admin@daleel.ai', '$2y$10$x24eZ69gfByNrhnLf9JuVOZn0fn5oNnlawdvMS9j861ql2c5M0bnG', 1),
+(2, 'yassine_student', 'yassine@univ.ma', '$2y$10$x24eZ69gfByNrhnLf9JuVOZn0fn5oNnlawdvMS9j861ql2c5M0bnG', 2),
+(3, 'academic_user', 'academic@daleel.ai', '$2y$10$x24eZ69gfByNrhnLf9JuVOZn0fn5oNnlawdvMS9j861ql2c5M0bnG', 2);
 
 -- Insertion des Catégories
 INSERT INTO `categories` (`id`, `name`, `slug`, `description`, `icon`) VALUES
