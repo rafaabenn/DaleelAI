@@ -27,18 +27,14 @@ export default function Navbar({ user, onLogout, setPage }) {
                     cursor: 'pointer'
                 }}
             >
-                <div style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '10px',
-                    background: 'linear-gradient(135deg, #a855f7 0%, #3b82f6 50%, #10b981 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 0 16px rgba(168, 85, 247, 0.5)'
-                }}>
-                    <Database size={22} color="white" />
+                <div>
+                    <img 
+                        src="/logo.png" 
+                        alt="Daleel AI" 
+                        style={{ width: '60px', height: '60px', borderRadius: '10px' }} 
+                    />
                 </div>
+                
                 <div>
                     <h1 style={{
                         fontSize: '1.3rem',
@@ -89,20 +85,13 @@ export default function Navbar({ user, onLogout, setPage }) {
                             <>
                                 <button 
                                     onClick={() => setPage('dashboard')}
-                                    className="btn-secondary" 
+                                    className="btn-primary" 
                                     style={{ padding: '8px 16px', fontSize: '0.9rem' }}
                                 >
                                     <LayoutDashboard size={16} />
                                     Mon Espace
                                 </button>
-                                <button 
-                                    onClick={() => setPage('submit')}
-                                    className="btn-primary" 
-                                    style={{ padding: '8px 16px', fontSize: '0.9rem' }}
-                                >
-                                    <PlusCircle size={16} />
-                                    Soumettre IA
-                                </button>
+                                
                             </>
                         )}
 

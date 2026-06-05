@@ -104,7 +104,7 @@ export default function ToolDetailModal({ toolId, onClose, user, isFavorited, on
                 }}>
                     <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                         <img 
-                            src={tool.logo_url} 
+                            src={`https://icon.horse/icon/${new URL(tool.website_url).hostname}`}
                             alt={tool.name} 
                             style={{
                                 width: '64px',

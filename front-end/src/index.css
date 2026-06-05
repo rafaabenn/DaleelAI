@@ -1,16 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
 /* =====================================================================
-   DALEEL AI - CSS DESIGN SYSTEM & PREMIUM UI TOKENS
+   DALEEL AI - CSS DESIGN SYSTEM & PREMIUM UI TOKENS (LIGHTER THEME)
    ===================================================================== */
 
 :root {
-  /* Harmonious Dark Space Palette - Enhanced with Logo Colors */
-  --bg-primary: #08090f;
-  --bg-secondary: #10111a;
-  --bg-tertiary: #181926;
-  
-  /* Logo-inspired vibrant colors */
+  /* Lighter Dark Palette — Gris-bleu doux au lieu du noir profond */
+  --bg-primary: #1a1d2e;       /* était #08090f → gris-bleu foncé */
+  --bg-secondary: #222538;     /* était #10111a → un peu plus clair */
+  --bg-tertiary: #2a2d44;      /* était #181926 → plus visible */
+
+  /* Logo-inspired vibrant colors — inchangés */
   --accent-blue: #3b82f6;
   --accent-blue-light: #60a5fa;
   --accent-green: #10b981;
@@ -22,38 +22,38 @@
   --accent-emerald: #10b981;
   --accent-rose: #f43f5e;
   --accent-amber: #f59e0b;
-  
-  /* Glowing / Shadow effects */
-  --accent-glow: rgba(168, 85, 247, 0.35);
-  --emerald-glow: rgba(16, 185, 129, 0.25);
-  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
-  
-  /* Typography fallback & standards */
+
+  /* Glowing / Shadow effects — légèrement adoucis */
+  --accent-glow: rgba(168, 85, 247, 0.25);
+  --emerald-glow: rgba(16, 185, 129, 0.20);
+  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.30);
+
+  /* Typography */
   --font-display: 'Outfit', sans-serif;
   --font-body: 'Inter', sans-serif;
-  
-  /* Glassmorphism Tokens */
-  --glass-bg: rgba(16, 17, 26, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.07);
-  --glass-border-hover: rgba(168, 85, 247, 0.3);
-  
-  /* Standard transition speed */
+
+  /* Glassmorphism Tokens — plus lumineux */
+  --glass-bg: rgba(34, 37, 56, 0.75);        /* était rgba(16,17,26,0.7) */
+  --glass-border: rgba(255, 255, 255, 0.10); /* était 0.07 → plus visible */
+  --glass-border-hover: rgba(168, 85, 247, 0.35);
+
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  
+
+  /* Texte — légèrement plus lumineux */
   --text-primary: #f3f4f6;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
+  --text-secondary: #b0b8cc;   /* était #9ca3af → plus lisible */
+  --text-muted: #7a86a0;       /* était #6b7280 → plus lisible */
 }
 
 /* =====================================================================
-   CORE RESET & LAYOUT Base
+   CORE RESET & LAYOUT BASE
    ===================================================================== */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
   scrollbar-width: thin;
-  scrollbar-color: var(--accent-purple) var(--bg-primary);
+  scrollbar-color: var(--accent-purple) var(--bg-secondary);
 }
 
 body {
@@ -83,21 +83,10 @@ button, input, textarea, select {
   border: none;
 }
 
-/* Custom Scrollbar for premium aesthetic */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-primary);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-purple);
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-purple); }
 
 /* =====================================================================
    GLASSMORPHISM & GENERAL UTILITIES
@@ -112,7 +101,7 @@ button, input, textarea, select {
 }
 
 .glass-card {
-  background: rgba(24, 25, 38, 0.4);
+  background: rgba(42, 45, 68, 0.50);  /* était rgba(24,25,38,0.4) → plus clair */
   backdrop-filter: blur(8px);
   border: 1px solid var(--glass-border);
   border-radius: 12px;
@@ -125,14 +114,14 @@ button, input, textarea, select {
   box-shadow: 0 12px 24px -4px rgba(139, 92, 246, 0.15), var(--card-shadow);
 }
 
-/* Elegant Animated Purple Gradient Background */
+/* Gradient background — légèrement réduit pour moins d'intensité */
 .gradient-bg {
   position: absolute;
   top: -10%;
   left: 20%;
   width: 50vw;
   height: 50vw;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, rgba(59, 130, 246, 0.15) 35%, rgba(0,0,0,0) 70%);
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.18) 0%, rgba(59, 130, 246, 0.08) 35%, rgba(0,0,0,0) 70%);
   z-index: -1;
   pointer-events: none;
   filter: blur(40px);
@@ -144,14 +133,14 @@ button, input, textarea, select {
   right: 10%;
   width: 40vw;
   height: 40vw;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, rgba(249, 115, 22, 0.1) 40%, rgba(0,0,0,0) 75%);
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.10) 0%, rgba(249, 115, 22, 0.06) 40%, rgba(0,0,0,0) 75%);
   z-index: -1;
   pointer-events: none;
   filter: blur(60px);
 }
 
 /* =====================================================================
-   CORE BUTTONS & INPUT ELEMENTS
+   BUTTONS
    ===================================================================== */
 .btn-primary {
   background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%);
@@ -165,21 +154,19 @@ button, input, textarea, select {
   align-items: center;
   gap: 8px;
   transition: var(--transition-smooth);
-  box-shadow: 0 4px 14px 0 rgba(168, 85, 247, 0.4);
+  box-shadow: 0 4px 14px 0 rgba(168, 85, 247, 0.35);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px 0 rgba(168, 85, 247, 0.6);
+  box-shadow: 0 6px 20px 0 rgba(168, 85, 247, 0.5);
   filter: brightness(1.1);
 }
 
-.btn-primary:active {
-  transform: translateY(0);
-}
+.btn-primary:active { transform: translateY(0); }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.07);  /* était 0.05 */
   border: 1px solid var(--glass-border);
   color: var(--text-primary);
   font-family: var(--font-display);
@@ -194,7 +181,7 @@ button, input, textarea, select {
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   border-color: var(--text-secondary);
 }
 
@@ -216,7 +203,7 @@ button, input, textarea, select {
 .btn-success:hover {
   transform: translateY(-2px);
   filter: brightness(1.15);
-  box-shadow: 0 6px 20px 0 rgba(16, 185, 129, 0.4);
+  box-shadow: 0 6px 20px 0 rgba(16, 185, 129, 0.35);
 }
 
 .btn-danger {
@@ -240,8 +227,8 @@ button, input, textarea, select {
 
 .input-field {
   width: 100%;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--glass-border);
+  background: var(--bg-secondary);          /* était --bg-tertiary */
+  border: 1px solid rgba(255,255,255,0.12); /* plus visible */
   color: var(--text-primary);
   padding: 12px 16px;
   border-radius: 10px;
@@ -251,12 +238,12 @@ button, input, textarea, select {
 
 .input-field:focus {
   border-color: var(--accent-blue);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
   background: var(--bg-primary);
 }
 
 /* =====================================================================
-   MAIN WEB APP CONTAINER LAYOUTS
+   LAYOUT
    ===================================================================== */
 .app-container {
   display: flex;
@@ -266,13 +253,12 @@ button, input, textarea, select {
 
 .main-content {
   flex: 1;
-  padding: 88px 4% 40px 4%; /* Margins for floating Navbar */
+  padding: 88px 4% 40px 4%;
   max-width: 1560px;
   margin: 0 auto;
   width: 100%;
 }
 
-/* Search Sidebar and Card Deck Grid */
 .portal-layout {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -281,9 +267,7 @@ button, input, textarea, select {
 }
 
 @media (max-width: 968px) {
-  .portal-layout {
-    grid-template-columns: 1fr;
-  }
+  .portal-layout { grid-template-columns: 1fr; }
 }
 
 .cards-grid {
@@ -293,13 +277,11 @@ button, input, textarea, select {
 }
 
 @media (max-width: 480px) {
-  .cards-grid {
-    grid-template-columns: 1fr;
-  }
+  .cards-grid { grid-template-columns: 1fr; }
 }
 
 /* =====================================================================
-   UI BADGES & MICRO DECORATIONS
+   BADGES
    ===================================================================== */
 .badge {
   display: inline-flex;
@@ -311,68 +293,28 @@ button, input, textarea, select {
   font-family: var(--font-display);
 }
 
-.badge-purple {
-  background: rgba(168, 85, 247, 0.15);
-  color: var(--accent-violet);
-  border: 1px solid rgba(168, 85, 247, 0.3);
-}
+.badge-purple  { background: rgba(168, 85, 247, 0.18); color: var(--accent-violet);     border: 1px solid rgba(168, 85, 247, 0.35); }
+.badge-emerald { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald);    border: 1px solid rgba(16, 185, 129, 0.30); }
+.badge-amber   { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber);      border: 1px solid rgba(245, 158, 11, 0.30); }
+.badge-blue    { background: rgba(59, 130, 246, 0.18); color: var(--accent-blue-light); border: 1px solid rgba(59, 130, 246, 0.35); }
+.badge-rose    { background: rgba(244, 63, 94, 0.15);  color: var(--accent-rose);       border: 1px solid rgba(244, 63, 94, 0.30); }
+.badge-green   { background: rgba(16, 185, 129, 0.18); color: var(--accent-green);      border: 1px solid rgba(16, 185, 129, 0.35); }
+.badge-orange  { background: rgba(249, 115, 22, 0.18); color: var(--accent-orange);     border: 1px solid rgba(249, 115, 22, 0.35); }
+.badge-yellow  { background: rgba(234, 179, 8, 0.18);  color: var(--accent-yellow);     border: 1px solid rgba(234, 179, 8, 0.35); }
 
-.badge-emerald {
-  background: rgba(16, 185, 129, 0.12);
-  color: var(--accent-emerald);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-}
-
-.badge-amber {
-  background: rgba(245, 158, 11, 0.12);
-  color: var(--accent-amber);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-}
-
-.badge-blue {
-  background: rgba(59, 130, 246, 0.15);
-  color: var(--accent-blue-light);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.badge-rose {
-  background: rgba(244, 63, 94, 0.12);
-  color: var(--accent-rose);
-  border: 1px solid rgba(244, 63, 94, 0.25);
-}
-
-.badge-green {
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--accent-green);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.badge-orange {
-  background: rgba(249, 115, 22, 0.15);
-  color: var(--accent-orange);
-  border: 1px solid rgba(249, 115, 22, 0.3);
-}
-
-.badge-yellow {
-  background: rgba(234, 179, 8, 0.15);
-  color: var(--accent-yellow);
-  border: 1px solid rgba(234, 179, 8, 0.3);
-}
-
-/* Weighted Score indicator */
 .score-badge {
-  background: linear-gradient(135deg, #1e1b4b 0%, #311042 100%);
+  background: linear-gradient(135deg, #2a2760 0%, #3d1a52 100%); /* était plus sombre */
   border: 1px solid var(--accent-purple);
   padding: 6px 12px;
   border-radius: 8px;
   font-family: var(--font-display);
   font-weight: 700;
   color: var(--accent-violet);
-  box-shadow: 0 4px 10px rgba(168, 85, 247, 0.2);
+  box-shadow: 0 4px 10px rgba(168, 85, 247, 0.15);
 }
 
 /* =====================================================================
-   ACADEMIC CHATBOT INTERFACE (FLOATING WINDOW)
+   CHATBOT
    ===================================================================== */
 .chatbot-trigger {
   position: fixed;
@@ -387,14 +329,14 @@ button, input, textarea, select {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 8px 30px rgba(168, 85, 247, 0.6);
+  box-shadow: 0 8px 30px rgba(168, 85, 247, 0.5);
   z-index: 999;
   transition: var(--transition-smooth);
 }
 
 .chatbot-trigger:hover {
   transform: scale(1.1) rotate(10deg);
-  box-shadow: 0 10px 35px rgba(59, 130, 246, 0.8);
+  box-shadow: 0 10px 35px rgba(59, 130, 246, 0.7);
 }
 
 .chatbot-window {
@@ -408,7 +350,7 @@ button, input, textarea, select {
   z-index: 999;
   overflow: hidden;
   animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
 
 @media (max-width: 480px) {
@@ -423,7 +365,7 @@ button, input, textarea, select {
 
 .chat-header {
   padding: 16px 20px;
-  background: linear-gradient(135deg, rgba(20, 21, 33, 0.95) 0%, rgba(40, 20, 70, 0.95) 100%);
+  background: linear-gradient(135deg, rgba(34, 37, 56, 0.97) 0%, rgba(55, 28, 90, 0.97) 100%);
   border-bottom: 1px solid var(--glass-border);
   display: flex;
   align-items: center;
@@ -453,7 +395,7 @@ button, input, textarea, select {
   background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%);
   color: white;
   border-bottom-right-radius: 2px;
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.25);
 }
 
 .chat-message.assistant {
@@ -467,13 +409,13 @@ button, input, textarea, select {
 .chat-footer {
   padding: 16px;
   border-top: 1px solid var(--glass-border);
-  background: rgba(16, 17, 26, 0.9);
+  background: rgba(34, 37, 56, 0.95);   /* était rgba(16,17,26,0.9) */
 }
 
 .chat-input-wrapper {
   display: flex;
   gap: 8px;
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
   border-radius: 24px;
   padding: 4px 6px 4px 16px;
@@ -508,15 +450,13 @@ button, input, textarea, select {
 }
 
 /* =====================================================================
-   POPUP FREE TRIAL PLATFORM SANDBOX / PREVIEW
+   POPUP / TRIAL
    ===================================================================== */
 .popup-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(5, 5, 8, 0.85);
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(15, 16, 28, 0.80);  /* était rgba(5,5,8,0.85) → moins oppressant */
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -556,7 +496,6 @@ button, input, textarea, select {
   border: none;
 }
 
-/* Redirect Sandbox panel if iframe fails */
 .sandbox-redirect-panel {
   display: flex;
   flex-direction: column;
@@ -570,40 +509,26 @@ button, input, textarea, select {
 }
 
 /* =====================================================================
-   ANIMATIONS UTILS
+   ANIMATIONS
    ===================================================================== */
 @keyframes slideUp {
-  from {
-    transform: translateY(30px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(30px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 
 @keyframes fadeIn {
   from { opacity: 0; }
-  to { opacity: 1; }
+  to   { opacity: 1; }
 }
 
 @keyframes zoomIn {
-  from {
-    transform: scale(0.95);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
 }
 
 /* =====================================================================
-   LOGO-INSPIRED COLOR ACCENT UTILITIES
+   TEXT & COLOR UTILITIES
    ===================================================================== */
-
-/* Gradient text utilities matching logo colors */
 .text-gradient-logo {
   background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 50%, var(--accent-green) 100%);
   -webkit-background-clip: text;
@@ -618,68 +543,18 @@ button, input, textarea, select {
   background-clip: text;
 }
 
-/* Accent border utilities */
-.accent-border-blue {
-  border-color: var(--accent-blue);
-}
+.accent-border-blue   { border-color: var(--accent-blue);   }
+.accent-border-green  { border-color: var(--accent-green);  }
+.accent-border-orange { border-color: var(--accent-orange); }
+.accent-border-purple { border-color: var(--accent-purple); }
 
-.accent-border-green {
-  border-color: var(--accent-green);
-}
+.hover-accent-blue:hover   { color: var(--accent-blue);   border-color: var(--accent-blue);   }
+.hover-accent-green:hover  { color: var(--accent-green);  border-color: var(--accent-green);  }
+.hover-accent-orange:hover { color: var(--accent-orange); border-color: var(--accent-orange); }
+.hover-accent-purple:hover { color: var(--accent-purple); border-color: var(--accent-purple); }
 
-.accent-border-orange {
-  border-color: var(--accent-orange);
-}
-
-.accent-border-purple {
-  border-color: var(--accent-purple);
-}
-
-/* Hover effects with logo colors */
-.hover-accent-blue:hover {
-  color: var(--accent-blue);
-  border-color: var(--accent-blue);
-}
-
-.hover-accent-green:hover {
-  color: var(--accent-green);
-  border-color: var(--accent-green);
-}
-
-.hover-accent-orange:hover {
-  color: var(--accent-orange);
-  border-color: var(--accent-orange);
-}
-
-.hover-accent-purple:hover {
-  color: var(--accent-purple);
-  border-color: var(--accent-purple);
-}
-
-/* Badge yellow variant for logo accent */
-.badge-yellow {
-  background: rgba(234, 179, 8, 0.15);
-  color: var(--accent-yellow);
-  border: 1px solid rgba(234, 179, 8, 0.3);
-}
-
-/* Icon color utilities for logo palette */
-.icon-blue {
-  color: var(--accent-blue);
-}
-
-.icon-green {
-  color: var(--accent-green);
-}
-
-.icon-orange {
-  color: var(--accent-orange);
-}
-
-.icon-yellow {
-  color: var(--accent-yellow);
-}
-
-.icon-purple {
-  color: var(--accent-purple);
-}
+.icon-blue   { color: var(--accent-blue);   }
+.icon-green  { color: var(--accent-green);  }
+.icon-orange { color: var(--accent-orange); }
+.icon-yellow { color: var(--accent-yellow); }
+.icon-purple { color: var(--accent-purple); }
