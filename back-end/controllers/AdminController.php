@@ -14,7 +14,7 @@ class AdminController {
         try {
             // KPIs
             $totalTools = (int)$pdo->query("SELECT COUNT(*) FROM ai_tools WHERE status = 'approved'")->fetchColumn();
-            $pendingSubmissions = (int)$pdo->query("SELECT COUNT(*) FROM ai_tools WHERE status = 'pending'")->fetchColumn();
+            $pendingSubmissions = (int)$pdo->query("SELECT COUNT(*) FROM ai_tools WHERE status IN ('pending', 'processing')")->fetchColumn();
             $totalReviews = (int)$pdo->query("SELECT COUNT(*) FROM reviews WHERE status = 'approved'")->fetchColumn();
             $totalUsers = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role_id = 2")->fetchColumn();
 
@@ -76,7 +76,7 @@ class AdminController {
                 SELECT t.*, u.username as submitted_by_username, u.email as submitted_by_email 
                 FROM ai_tools t 
                 LEFT JOIN users u ON t.submitted_by = u.id 
-                WHERE t.status = 'pending' 
+                WHERE t.status IN ('pending', 'processing') 
                 ORDER BY t.created_at ASC
             ");
             $stmt->execute();
@@ -100,13 +100,21 @@ class AdminController {
                 ");
                 $price_stmt->execute([$sub['id']]);
                 $sub['pricings'] = $price_stmt->fetchAll();
+
+            // Fetch languages if the user submitted them
+            $lang_stmt = $pdo->prepare("
+                    SELECT l.name FROM languages l 
+                    JOIN tool_languages tl ON l.id = tl.language_id 
+                    WHERE tl.tool_id = ?
+                ");
+            $lang_stmt->execute([$sub['id']]);
+            $sub['languages'] = $lang_stmt->fetchAll();
             }
 
             echo json_encode([
                 'success' => true,
                 'submissions' => $submissions
             ]);
-
         } catch (\PDOException $e) {
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Erreur lors de la récupération des soumissions : ' . $e->getMessage()]);
@@ -121,7 +129,7 @@ class AdminController {
         $action = isset($data['action']) ? trim($data['action']) : ''; // 'approve' or 'reject'
         $comment = isset($data['comment']) ? trim($data['comment']) : '';
 
-        if ($tool_id <= 0 || !in_array($action, ['approve', 'reject'])) {
+        if ($tool_id <= 0 || !in_array($action, ['approve', 'reject', 'request_changes'])) {
             http_response_code(400);
             echo json_encode(['success' => false, 'message' => 'Identifiants ou action de validation non spécifiés.']);
             return;
@@ -131,7 +139,7 @@ class AdminController {
 
         try {
             // Check if tool actually exists and is pending
-            $stmt = $pdo->prepare("SELECT id, name FROM ai_tools WHERE id = ? AND status = 'pending'");
+            $stmt = $pdo->prepare("SELECT id, name, submitted_by, short_description, long_description, website_url FROM ai_tools WHERE id = ? AND status IN ('pending', 'processing')");
             $stmt->execute([$tool_id]);
             $tool = $stmt->fetch();
 
@@ -141,8 +149,35 @@ class AdminController {
                 return;
             }
 
-            $newStatus = ($action === 'approve') ? 'approved' : 'rejected';
-            $logAction = ($action === 'approve') ? 'approve' : 'reject';
+            if ($action === 'approve') {
+                require_once __DIR__ . '/ToolController.php';
+                $validation = ToolController::runAutoValidation(
+                    $tool['name'],
+                    $tool['website_url'],
+                    $tool['short_description'],
+                    $tool['long_description']
+                );
+
+                if (!$validation['passed']) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'La vérification automatique a échoué : ' . $validation['error']
+                    ]);
+                    return;
+                }
+            }
+
+            if ($action === 'approve') {
+                $newStatus = 'approved';
+                $logAction = 'approve';
+            } elseif ($action === 'request_changes') {
+                $newStatus = 'processing';
+                $logAction = 'flag';
+            } else {
+                $newStatus = 'rejected';
+                $logAction = 'reject';
+            }
 
             $pdo->beginTransaction();
 
@@ -157,11 +192,29 @@ class AdminController {
             ");
             $log_stmt->execute([$admin_id, $tool_id, $logAction, $comment]);
 
+            // 3. Notify submitter if available
+            if (!empty($tool['submitted_by'])) {
+                if ($action === 'approve') {
+                    $notificationMessage = "Votre soumission '{$tool['name']}' a été approuvée et est maintenant publiée.";
+                } elseif ($action === 'reject') {
+                    $notificationMessage = "Votre soumission '{$tool['name']}' a été rejetée. Commentaire : " . ($comment ?: 'Pas de commentaire ajouté.');
+                } else {
+                    $notificationMessage = "Votre soumission '{$tool['name']}' nécessite des modifications. Commentaire : " . ($comment ?: 'Merci de corriger les informations et de renvoyer la soumission.');
+                }
+
+                $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, ?, 'submission_status', ?)");
+                $notifStmt->execute([$tool['submitted_by'], $tool_id, $notificationMessage]);
+            }
+
             $pdo->commit();
 
             $msg = ($action === 'approve') 
                 ? "L'outil '{$tool['name']}' a été validé et est désormais visible par tous les utilisateurs !" 
                 : "La soumission de l'outil '{$tool['name']}' a été rejetée avec succès.";
+
+            if ($action === 'request_changes') {
+                $msg = "Une demande de correction a ete envoyee pour l'outil '{$tool['name']}'.";
+            }
 
             echo json_encode([
                 'success' => true,

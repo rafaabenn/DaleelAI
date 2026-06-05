@@ -35,10 +35,6 @@ export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
             .catch(err => console.error("Erreur stats rapides", err));
     }, []);
 
-    useEffect(() => {
-        loadTools();
-    }, [filters]);
-
     const loadTools = async () => {
         setLoading(true);
         try {
@@ -52,6 +48,10 @@ export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        loadTools();
+    }, [filters]);
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();

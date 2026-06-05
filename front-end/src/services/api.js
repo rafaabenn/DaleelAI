@@ -100,6 +100,15 @@ export const api = {
                 body: JSON.stringify(toolData)
             }),
 
+        getMySubmissions: () =>
+            request('/tools/my-submissions', { method: 'GET' }),
+
+        resubmit: (toolData) =>
+            request('/tools/resubmit', {
+                method: 'POST',
+                body: JSON.stringify(toolData)
+            }),
+
         // Favorite/Unfavorite toggling
         toggleFavorite: (toolId) => 
             request('/tools/favorite', {
@@ -110,6 +119,17 @@ export const api = {
         // Retrieve user favorite list
         getFavorites: () => 
             request('/tools/favorites', { method: 'GET' }),
+
+        // Retrieve current user's notifications
+        getNotifications: () => 
+            request('/notifications', { method: 'GET' }),
+
+        // Mark a notification as read
+        markNotificationRead: (notificationId) => 
+            request('/notifications/read', {
+                method: 'POST',
+                body: JSON.stringify({ notification_id: notificationId })
+            }),
 
         // Submit user review ratings
         submitReview: (toolId, rating, comment) => 

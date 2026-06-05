@@ -13,6 +13,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- Drop tables if they exist
 DROP TABLE IF EXISTS `clicks_logs`;
 DROP TABLE IF EXISTS `moderation_logs`;
+DROP TABLE IF EXISTS `submission_attempts`;
 DROP TABLE IF EXISTS `chatbot_messages`;
 DROP TABLE IF EXISTS `chatbot_conversations`;
 DROP TABLE IF EXISTS `reviews`;
@@ -81,7 +82,7 @@ CREATE TABLE `ai_tools` (
     `gdpr_compliant` TINYINT(1) DEFAULT 0,
     `has_api` TINYINT(1) DEFAULT 0,
     `has_mobile_app` TINYINT(1) DEFAULT 0,
-    `status` ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    `status` ENUM('pending', 'approved', 'rejected', 'processing') DEFAULT 'pending',
     `submitted_by` INT NULL,
     `average_rating` DECIMAL(3,2) DEFAULT 0.00,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -126,7 +127,20 @@ CREATE TABLE `favorites` (
     CONSTRAINT `fk_fav_tool` FOREIGN KEY (`tool_id`) REFERENCES `ai_tools` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 11. Table `reviews`
+-- 11. Table `notifications`
+CREATE TABLE `notifications` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `tool_id` INT NULL,
+    `type` ENUM('submission_status', 'system', 'admin_message') NOT NULL DEFAULT 'submission_status',
+    `message` TEXT NOT NULL,
+    `status` ENUM('unread', 'read') NOT NULL DEFAULT 'unread',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_notification_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_notification_tool` FOREIGN KEY (`tool_id`) REFERENCES `ai_tools` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 12. Table `reviews`
 CREATE TABLE `reviews` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `user_id` INT NOT NULL,
@@ -170,7 +184,24 @@ CREATE TABLE `moderation_logs` (
     CONSTRAINT `fk_mod_admin` FOREIGN KEY (`admin_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 15. Table `clicks_logs`
+-- 15. Table `submission_attempts`
+-- Compteur local des echecs de validation automatique des soumissions.
+CREATE TABLE `submission_attempts` (
+    `attempt_key` CHAR(32) PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `website_url` VARCHAR(255) NOT NULL,
+    `tool_name` VARCHAR(100) NOT NULL,
+    `attempts_count` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    `last_error` VARCHAR(500) NULL,
+    `rejected_until` DATETIME NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_submission_attempts_user` (`user_id`),
+    INDEX `idx_submission_attempts_rejected_until` (`rejected_until`),
+    CONSTRAINT `fk_submission_attempt_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 16. Table `clicks_logs`
 CREATE TABLE `clicks_logs` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `tool_id` INT NOT NULL,

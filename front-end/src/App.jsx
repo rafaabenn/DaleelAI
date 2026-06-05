@@ -35,15 +35,6 @@ function App() {
         }
     }, []);
 
-    // Load favorites when user changes
-    useEffect(() => {
-        if (user) {
-            loadFavorites();
-        } else {
-            setFavorites([]);
-        }
-    }, [user]);
-
     const loadFavorites = async () => {
         try {
             const res = await api.tools.getFavorites();
@@ -54,6 +45,15 @@ function App() {
             console.error("Erreur chargement favoris:", err);
         }
     };
+
+    // Load favorites when user changes
+    useEffect(() => {
+        if (user) {
+            loadFavorites();
+        } else {
+            setFavorites([]);
+        }
+    }, [user]);
 
     const handleToggleFav = async (toolId) => {
         if (!user) return;

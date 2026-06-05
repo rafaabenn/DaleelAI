@@ -31,10 +31,6 @@ export default function AdminDashboard({ user }) {
     });
     const [actionMsg, setActionMsg] = useState({ text: '', type: '' });
 
-    useEffect(() => {
-        loadTabData(activeTab);
-    }, [activeTab]);
-
     const loadTabData = async (tab) => {
         setLoading(true);
         setActionMsg({ text: '', type: '' });
@@ -64,6 +60,10 @@ export default function AdminDashboard({ user }) {
         }
     };
 
+    useEffect(() => {
+        loadTabData(activeTab);
+    }, [activeTab]);
+
     const showMessage = (text, type = 'success') => {
         setActionMsg({ text, type });
         setTimeout(() => setActionMsg({ text: '', type: '' }), 4000);
@@ -72,9 +72,20 @@ export default function AdminDashboard({ user }) {
     // ── Submissions Actions ──
     const handleValidateSubmission = async (toolId, action) => {
         try {
-            const res = await api.admin.validateSubmission(toolId, action);
+            let comment = '';
+            if (action !== 'approve') {
+                comment = window.prompt(action === 'reject'
+                    ? 'Entrez un commentaire de rejet pour l\'utilisateur (optionnel) :'
+                    : 'Entrez les corrections demandées à l\'utilisateur :',
+                    'Merci d\'ajuster la description, le domaine ou les métadonnées.'
+                );
+                if (comment === null) return;
+            }
+
+            const res = await api.admin.validateSubmission(toolId, action, comment);
             if (res.success) {
-                showMessage(`Soumission ${action === 'approve' ? 'approuvée' : 'rejetée'} avec succès.`);
+                const actionLabel = action === 'approve' ? 'approuvée' : action === 'reject' ? 'rejetée' : 'mise en révision';
+                showMessage(`Soumission ${actionLabel} avec succès.`);
                 setSubmissions(prev => prev.filter(s => s.id !== toolId));
             }
         } catch (err) {
@@ -351,7 +362,7 @@ export default function AdminDashboard({ user }) {
                                     <div>
                                         <h4 style={{ fontSize: '1.1rem', color: 'white', fontWeight: 700 }}>{sub.name}</h4>
                                         <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
-                                            Soumis par : <strong style={{ color: '#d946ef' }}>{sub.submitted_by || 'Utilisateur'}</strong>
+                                            Soumis par : <strong style={{ color: '#d946ef' }}>{sub.submitted_by_username || sub.submitted_by || 'Utilisateur'}</strong>
                                             {sub.created_at && ` — ${new Date(sub.created_at).toLocaleDateString('fr-FR')}`}
                                         </span>
                                     </div>
@@ -359,7 +370,7 @@ export default function AdminDashboard({ user }) {
                                 </div>
 
                                 <p style={{ fontSize: '0.88rem', color: '#d1d5db', lineHeight: '1.5' }}>
-                                    {sub.short_description || sub.full_description || 'Pas de description fournie.'}
+                                    {sub.full_description || sub.long_description || sub.short_description || 'Pas de description fournie.'}
                                 </p>
 
                                 {sub.website_url && (
@@ -372,6 +383,45 @@ export default function AdminDashboard({ user }) {
                                     }}>
                                         <Globe size={12} /> {sub.website_url}
                                     </a>
+                                )}
+
+                                {sub.trial_url && (
+                                    <a href={sub.trial_url} target="_blank" rel="noopener noreferrer" style={{
+                                        fontSize: '0.82rem',
+                                        color: '#60a5fa',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}>
+                                        <Smartphone size={12} /> URL d'essai : {sub.trial_url}
+                                    </a>
+                                )}
+
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '8px' }}>
+                                    <span className="badge badge-slate">API: {sub.has_api ? 'Oui' : 'Non'}</span>
+                                    <span className="badge badge-slate">Mobile: {sub.has_mobile_app ? 'Oui' : 'Non'}</span>
+                                    <span className="badge badge-slate">RGPD: {sub.gdpr_compliant ? 'Oui' : 'Non'}</span>
+                                    {sub.status && <span className="badge badge-amber">Statut interne: {sub.status}</span>}
+                                </div>
+
+                                {(sub.categories?.length > 0 || sub.pricings?.length > 0 || sub.languages?.length > 0) && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginTop: '12px' }}>
+                                        {sub.categories?.length > 0 && (
+                                            <div style={{ color: '#cbd5e1', fontSize: '0.82rem' }}>
+                                                <strong>Catégories:</strong> {sub.categories.map(c => c.name).join(', ')}
+                                            </div>
+                                        )}
+                                        {sub.pricings?.length > 0 && (
+                                            <div style={{ color: '#cbd5e1', fontSize: '0.82rem' }}>
+                                                <strong>Modèles de prix:</strong> {sub.pricings.map(p => p.name).join(', ')}
+                                            </div>
+                                        )}
+                                        {sub.languages?.length > 0 && (
+                                            <div style={{ color: '#cbd5e1', fontSize: '0.82rem' }}>
+                                                <strong>Langues:</strong> {sub.languages.map(l => l.name).join(', ')}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
 
                                 <div style={{ display: 'flex', gap: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '14px' }}>
@@ -388,6 +438,13 @@ export default function AdminDashboard({ user }) {
                                         style={{ padding: '8px 18px', fontSize: '0.82rem' }}
                                     >
                                         <XCircle size={14} /> Rejeter
+                                    </button>
+                                    <button
+                                        onClick={() => handleValidateSubmission(sub.id, 'request_changes')}
+                                        className="btn-secondary"
+                                        style={{ padding: '8px 18px', fontSize: '0.82rem', background: 'rgba(249, 115, 22, 0.12)', color: '#f97316', border: '1px solid rgba(249, 115, 22, 0.2)' }}
+                                    >
+                                        <AlertTriangle size={14} /> Demander correction
                                     </button>
                                 </div>
                             </div>

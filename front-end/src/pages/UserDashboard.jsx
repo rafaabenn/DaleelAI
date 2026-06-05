@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import ToolCard from '../components/ToolCard';
-import { Heart, PlusCircle, ChevronDown, ChevronUp, CheckCircle, XCircle, ShieldAlert, Globe, Tag, FileText, Layers } from 'lucide-react';
+import { Heart, PlusCircle, ChevronDown, ChevronUp, CheckCircle, XCircle, ShieldAlert, Globe, Tag, FileText, Layers, Bell, ImagePlus, Edit3 } from 'lucide-react';
 
 export default function UserDashboard({ user, favorites, onToggleFav, setPage, onOpenTrial }) {
     const [favTools, setFavTools] = useState([]);
@@ -11,20 +11,26 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
         name: '',
         website_url: '',
         trial_url: '',
+        logo_url: '',
         short_description: '',
         full_description: '',
         category_id: '1',
-        pricing_model_id: '1'
+        pricing_model_id: '1',
+        language_id: '',
+        gdpr_compliant: 0,
+        has_api: 0,
+        has_mobile_app: 0
     });
     const [submitting, setSubmitting] = useState(false);
     const [submitSuccess, setSubmitSuccess] = useState('');
     const [submitError, setSubmitError] = useState('');
-    const [filterOptions, setFilterOptions] = useState({ categories: [], pricing_models: [] });
-
-    useEffect(() => {
-        loadFavorites();
-        loadFilters();
-    }, []);
+    const [submitValidation, setSubmitValidation] = useState(null);
+    const [notifications, setNotifications] = useState([]);
+    const [loadingNotifications, setLoadingNotifications] = useState(true);
+    const [userSubmissions, setUserSubmissions] = useState([]);
+    const [loadingSubmissions, setLoadingSubmissions] = useState(true);
+    const [editingSubmissionId, setEditingSubmissionId] = useState(null);
+    const [filterOptions, setFilterOptions] = useState({ categories: [], pricing_models: [], languages: [] });
 
     const loadFavorites = async () => {
         setLoadingFavs(true);
@@ -46,12 +52,88 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
             if (res.success) {
                 setFilterOptions({
                     categories: res.categories || [],
-                    pricing_models: res.pricing_models || []
+                    pricing_models: res.pricing_models || [],
+                    languages: res.languages || []
                 });
             }
         } catch (err) {
             console.error("Erreur chargement filtres soumission", err);
         }
+    };
+
+    const loadNotifications = async () => {
+        setLoadingNotifications(true);
+        try {
+            const res = await api.tools.getNotifications();
+            if (res.success) {
+                setNotifications(res.notifications || []);
+            }
+        } catch (err) {
+            console.error("Erreur chargement notifications", err);
+        } finally {
+            setLoadingNotifications(false);
+        }
+    };
+
+    const loadUserSubmissions = async () => {
+        setLoadingSubmissions(true);
+        try {
+            const res = await api.tools.getMySubmissions();
+            if (res.success) {
+                setUserSubmissions(res.submissions || []);
+            }
+        } catch (err) {
+            console.error("Erreur chargement soumissions utilisateur", err);
+        } finally {
+            setLoadingSubmissions(false);
+        }
+    };
+
+    useEffect(() => {
+        loadFavorites();
+        loadFilters();
+        loadNotifications();
+        loadUserSubmissions();
+    }, []);
+
+    const resetSubmitForm = () => {
+        setSubmitData({
+            name: '',
+            website_url: '',
+            trial_url: '',
+            logo_url: '',
+            short_description: '',
+            full_description: '',
+            category_id: '1',
+            pricing_model_id: '1',
+            language_id: '',
+            gdpr_compliant: 0,
+            has_api: 0,
+            has_mobile_app: 0
+        });
+        setEditingSubmissionId(null);
+    };
+
+    const handleEditSubmission = (submission) => {
+        setSubmitData({
+            name: submission.name || '',
+            website_url: submission.website_url || '',
+            trial_url: submission.trial_url || '',
+            logo_url: submission.logo_url || '',
+            short_description: submission.short_description || '',
+            full_description: submission.long_description || '',
+            category_id: String(submission.category_ids?.[0] || '1'),
+            pricing_model_id: String(submission.pricing_ids?.[0] || '1'),
+            language_id: submission.language_ids?.[0] ? String(submission.language_ids[0]) : '',
+            gdpr_compliant: Number(submission.gdpr_compliant) ? 1 : 0,
+            has_api: Number(submission.has_api) ? 1 : 0,
+            has_mobile_app: Number(submission.has_mobile_app) ? 1 : 0
+        });
+        setEditingSubmissionId(submission.id);
+        setSubmitSuccess('');
+        setSubmitError('');
+        setSubmitValidation(null);
+        setShowSubmitForm(true);
     };
 
     const handleSubmitTool = async (e) => {
@@ -60,18 +142,20 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
         setSubmitSuccess('');
         setSubmitError('');
         try {
-            const res = await api.tools.submit(submitData);
+            const payload = {
+                ...submitData,
+                tool_id: editingSubmissionId,
+                categories: [submitData.category_id],
+                pricings: [submitData.pricing_model_id],
+                languages: submitData.language_id ? [submitData.language_id] : []
+            };
+            const res = editingSubmissionId
+                ? await api.tools.resubmit(payload)
+                : await api.tools.submit(payload);
             if (res.success) {
-                setSubmitSuccess("Votre demande de soumission a été envoyée avec succès ! Un administrateur va l'examiner et vous notifier de sa décision.");
-                setSubmitData({
-                    name: '',
-                    website_url: '',
-                    trial_url: '',
-                    short_description: '',
-                    full_description: '',
-                    category_id: '1',
-                    pricing_model_id: '1'
-                });
+                setSubmitSuccess(res.message || "Votre demande de soumission a été envoyée avec succès !");
+                setSubmitValidation(res.validation || null);
+                resetSubmitForm();
                 setShowSubmitForm(false);
             } else {
                 setSubmitError(res.message || "Erreur lors de la soumission de l'outil.");
@@ -80,6 +164,8 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
             setSubmitError(err.message || "Erreur de connexion.");
         } finally {
             setSubmitting(false);
+            loadNotifications();
+            loadUserSubmissions();
         }
     };
 
@@ -87,6 +173,17 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
         await onToggleFav(toolId);
         setFavTools(prev => prev.filter(t => t.id !== toolId));
     };
+
+    const handleMarkNotificationRead = async (notificationId) => {
+        try {
+            await api.tools.markNotificationRead(notificationId);
+            setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, status: 'read' } : n));
+        } catch (err) {
+            console.error('Erreur lors du marquage en lu', err);
+        }
+    };
+
+    const correctionSubmissions = userSubmissions.filter(sub => sub.status === 'processing');
 
     return (
         <div style={{ position: 'relative' }}>
@@ -108,7 +205,106 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                 <p style={{ color: '#9ca3af', fontSize: '0.95rem', marginTop: '6px' }}>
                     Bienvenue, <strong style={{ color: '#a78bfa' }}>{user.username}</strong> — gérez vos outils favoris et soumettez de nouvelles références à la communauté.
                 </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginTop: '20px' }}>
+                    <div style={{ color: '#c7d2fe', fontSize: '0.95rem' }}>
+                        Notifications de soumission
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Bell size={18} color="#a78bfa" />
+                        <span style={{ color: '#f8fafc', fontWeight: 600 }}>
+                            {notifications.filter(n => n.status === 'unread').length} non lue(s)
+                        </span>
+                    </div>
+                </div>
+
+                <div style={{ marginTop: '16px', padding: '18px', borderRadius: '16px', background: 'rgba(15, 23, 42, 0.92)', border: '1px solid rgba(148, 163, 184, 0.15)' }}>
+                    {loadingNotifications ? (
+                        <p style={{ color: '#94a3b8', margin: 0 }}>Chargement des notifications...</p>
+                    ) : (
+                        notifications.length > 0 ? (
+                            notifications.slice(0, 4).map(notification => (
+                                <div key={notification.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', padding: '14px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.12)' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <p style={{ margin: 0, color: '#e2e8f0', fontWeight: notification.status === 'unread' ? 600 : 400 }}>{notification.message}</p>
+                                        <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '0.78rem' }}>{new Date(notification.created_at).toLocaleString()}</p>
+                                    </div>
+                                    {notification.status === 'unread' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleMarkNotificationRead(notification.id)}
+                                            style={{
+                                                border: '1px solid rgba(167, 139, 250, 0.35)',
+                                                background: 'transparent',
+                                                color: '#a78bfa',
+                                                borderRadius: '999px',
+                                                padding: '8px 14px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Marquer lu
+                                        </button>
+                                    )}
+                                </div>
+                            ))
+                        ) : (
+                            <p style={{ color: '#94a3b8', margin: 0 }}>Aucune notification pour le moment.</p>
+                        )
+                    )}
+                </div>
             </div>
+
+            {correctionSubmissions.length > 0 && (
+                <div className="glass-panel" style={{
+                    marginBottom: '24px',
+                    padding: '20px',
+                    border: '1px solid rgba(245, 158, 11, 0.28)',
+                    background: 'rgba(245, 158, 11, 0.05)',
+                    borderRadius: '16px'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                        <div>
+                            <h3 style={{ margin: 0, color: 'white', fontSize: '1.05rem', fontWeight: 700 }}>
+                                Soumissions a corriger
+                            </h3>
+                            <p style={{ margin: '6px 0 0', color: '#fbbf24', fontSize: '0.82rem' }}>
+                                L administrateur demande une modification. Vous avez 3 tentatives de correction avant blocage temporaire.
+                            </p>
+                        </div>
+                        <span className="badge badge-amber">{correctionSubmissions.length}</span>
+                    </div>
+
+                    {loadingSubmissions ? (
+                        <p style={{ color: '#94a3b8', margin: 0 }}>Chargement des corrections...</p>
+                    ) : (
+                        correctionSubmissions.map(submission => (
+                            <div key={submission.id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '14px',
+                                padding: '14px 0',
+                                borderTop: '1px solid rgba(255,255,255,0.08)'
+                            }}>
+                                <div style={{ minWidth: 0 }}>
+                                    <div style={{ color: '#f8fafc', fontWeight: 700 }}>{submission.name}</div>
+                                    <div style={{ color: '#cbd5e1', fontSize: '0.82rem', marginTop: '4px' }}>
+                                        {submission.short_description}
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => handleEditSubmission(submission)}
+                                    style={{ whiteSpace: 'nowrap', color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.35)' }}
+                                >
+                                    <Edit3 size={14} /> Corriger
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
 
             {/* Submit Tool Button/Collapsible Block */}
             <div className="glass-panel" style={{
@@ -145,7 +341,7 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                         </div>
                         <div style={{ textAlign: 'left' }}>
                             <div style={{ fontWeight: 700, fontSize: '1.05rem', fontFamily: 'var(--font-display)' }}>
-                                Soumettre un nouvel outil d'IA
+                                {editingSubmissionId ? 'Corriger votre soumission' : "Soumettre un nouvel outil d'IA"}
                             </div>
                             <div style={{ fontSize: '0.78rem', color: '#9ca3af', marginTop: '2px' }}>
                                 Référencez un outil existant non encore indexé — votre demande sera examinée par un administrateur
@@ -174,6 +370,37 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                             }}>
                                 <CheckCircle size={18} />
                                 <span>{submitSuccess}</span>
+                            </div>
+                        )}
+
+                        {/* Validation breakdown preview (if present) */}
+                        {submitValidation && (
+                            <div style={{
+                                marginTop: '12px',
+                                padding: '12px',
+                                borderRadius: '10px',
+                                background: 'rgba(99,102,241,0.06)',
+                                border: '1px solid rgba(99,102,241,0.12)',
+                                color: '#e0e7ff'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ fontWeight: 700 }}>Résultat de la validation automatique</div>
+                                    <div style={{ fontSize: '0.85rem', color: '#c7d2fe' }}>
+                                        Score: {submitValidation.score ?? '—'} • {submitValidation.auto_approve ? 'Auto-approuvé' : 'En attente'}
+                                    </div>
+                                </div>
+                                <div style={{ marginTop: '8px', fontSize: '0.85rem', color: '#cbd5e1' }}>
+                                    <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                                        {submitValidation.breakdown && Object.keys(submitValidation.breakdown).map(key => (
+                                            <li key={key} style={{ marginBottom: '4px' }}>
+                                                <strong style={{ color: '#e2e8f0' }}>{key.replace(/_/g, ' ')}:</strong> {submitValidation.breakdown[key]}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                                    <button type="button" className="btn-secondary" onClick={() => setSubmitValidation(null)}>Fermer</button>
+                                </div>
                             </div>
                         )}
 
@@ -240,6 +467,20 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                                 />
                             </div>
 
+                            {/* Logo URL */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <ImagePlus size={12} /> URL du Logo (optionnel)
+                                </label>
+                                <input 
+                                    type="url"
+                                    value={submitData.logo_url}
+                                    onChange={(e) => setSubmitData(p => ({ ...p, logo_url: e.target.value }))}
+                                    className="input-field"
+                                    placeholder="https://exemple.com/logo.png"
+                                />
+                            </div>
+
                             {/* Category */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -256,6 +497,52 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                                         <option key={cat.id} value={cat.id}>{cat.name}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            {/* API / Mobile / GDPR */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', gridColumn: '1 / -1' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', color: '#cbd5e1' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={submitData.has_api === 1}
+                                            onChange={(e) => setSubmitData(p => ({ ...p, has_api: e.target.checked ? 1 : 0 }))}
+                                        />
+                                        API disponible
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', color: '#cbd5e1' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={submitData.has_mobile_app === 1}
+                                            onChange={(e) => setSubmitData(p => ({ ...p, has_mobile_app: e.target.checked ? 1 : 0 }))}
+                                        />
+                                        Application mobile
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', color: '#cbd5e1' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={submitData.gdpr_compliant === 1}
+                                            onChange={(e) => setSubmitData(p => ({ ...p, gdpr_compliant: e.target.checked ? 1 : 0 }))}
+                                        />
+                                        Conforme RGPD
+                                    </label>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Globe size={12} /> Langue principale
+                                    </label>
+                                    <select
+                                        value={submitData.language_id}
+                                        onChange={(e) => setSubmitData(p => ({ ...p, language_id: e.target.value }))}
+                                        className="input-field"
+                                        style={{ cursor: 'pointer' }}
+                                    >
+                                        <option value="">Aucune / Non spécifiée</option>
+                                        {filterOptions.languages.map(lang => (
+                                            <option key={lang.id} value={lang.id}>{lang.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
                             {/* Short Description */}
@@ -308,20 +595,20 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                             }}>
                                 <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
                                 <span>
-                                    Votre soumission sera envoyée à un administrateur pour validation. Assurez-vous que cet outil n'est pas déjà référencé dans notre catalogue avant de soumettre. Les doublons seront automatiquement détectés et rejetés.
+                                    Votre soumission sera vérifiée automatiquement. Si le site correspond au nom de l'outil, il sera publié instantanément ! Dans les autres cas (ou en cas de doute), un administrateur validera manuellement votre demande. Les doublons seront automatiquement détectés et rejetés.
                                 </span>
                             </div>
 
                             {/* Submit Button */}
                             <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                                <button type="button" className="btn-secondary" onClick={() => setShowSubmitForm(false)}>
+                                <button type="button" className="btn-secondary" onClick={() => { resetSubmitForm(); setShowSubmitForm(false); }}>
                                     Annuler
                                 </button>
                                 <button type="submit" className="btn-success" disabled={submitting}>
                                     {submitting ? 'Envoi en cours...' : (
                                         <>
                                             <PlusCircle size={16} />
-                                            Envoyer la Demande
+                                            {editingSubmissionId ? 'Envoyer la Correction' : 'Envoyer la Demande'}
                                         </>
                                     )}
                                 </button>

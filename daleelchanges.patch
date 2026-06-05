@@ -1,0 +1,1186 @@
+From 294bb8d8f5c2db1a5a61bb930412783b0240ba9a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 28 May 2026 02:09:38 +0000
+Subject: [PATCH] Add React Router navigation and password reset flow
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Replace useState page-switching with react-router-dom v7 (BrowserRouter +
+  Routes/Route); pages now have real URLs (/login, /register, /dashboard,
+  /admin, /forgot-password, /reset-password) so refresh and back/forward work
+- Remove setPage prop drilling from Navbar, Login, Register, UserDashboard;
+  each component uses useNavigate() directly
+- Add protected routes: /dashboard redirects to /login if unauthenticated;
+  /admin redirects to / if not role_id=1
+- Add forgot-password and reset-password pages with matching UI style
+- Add AuthController::forgotPassword() and ::resetPassword() backend methods;
+  tokens are SHA-256-hashed before storage, expire in 1 hour, single-use
+- Add /api/auth/forgot-password and /api/auth/reset-password routes in index.php
+- Add password_resets.sql migration for the new table
+- Add api.auth.forgotPassword() and api.auth.resetPassword() in api.js
+- Add "Mot de passe oublié ?" link in Login form
+
+https://claude.ai/code/session_01Sd2VC7cYZDyiqtfaideRtz
+---
+ back-end/controllers/AuthController.php |  98 +++++++++++
+ back-end/index.php                      |  20 +++
+ back-end/password_resets.sql            |  13 ++
+ front-end/package-lock.json             |  60 ++++++-
+ front-end/package.json                  |   3 +-
+ front-end/src/App.jsx                   | 114 ++++++------
+ front-end/src/components/Navbar.jsx     |  19 +-
+ front-end/src/pages/ForgotPassword.jsx  | 223 ++++++++++++++++++++++++
+ front-end/src/pages/Login.jsx           |  21 ++-
+ front-end/src/pages/Register.jsx        |  10 +-
+ front-end/src/pages/ResetPassword.jsx   | 216 +++++++++++++++++++++++
+ front-end/src/pages/UserDashboard.jsx   |   6 +-
+ front-end/src/services/api.js           |  16 +-
+ 13 files changed, 735 insertions(+), 84 deletions(-)
+ create mode 100644 back-end/password_resets.sql
+ create mode 100644 front-end/src/pages/ForgotPassword.jsx
+ create mode 100644 front-end/src/pages/ResetPassword.jsx
+
+diff --git a/back-end/controllers/AuthController.php b/back-end/controllers/AuthController.php
+index 2184aeb..6c5b6f9 100644
+--- a/back-end/controllers/AuthController.php
++++ b/back-end/controllers/AuthController.php
+@@ -139,4 +139,102 @@ class AuthController {
+             echo json_encode(['success' => false, 'message' => 'Erreur serveur lors de la connexion : ' . $e->getMessage()]);
+         }
+     }
++
++    public static function forgotPassword($data) {
++        $email = isset($data['email']) ? trim($data['email']) : '';
++
++        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
++            http_response_code(400);
++            echo json_encode(['success' => false, 'message' => 'Adresse email invalide.']);
++            return;
++        }
++
++        $pdo = DB::connect();
++
++        try {
++            $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
++            $stmt->execute([$email]);
++            $user = $stmt->fetch();
++
++            // Always return success to prevent email enumeration
++            if (!$user) {
++                echo json_encode(['success' => true, 'message' => 'Si cette adresse est enregistrée, un lien de réinitialisation a été généré.']);
++                return;
++            }
++
++            // Remove any existing token for this email
++            $stmt = $pdo->prepare("DELETE FROM password_resets WHERE email = ?");
++            $stmt->execute([$email]);
++
++            $token = bin2hex(random_bytes(32));
++            $hashedToken = hash('sha256', $token);
++            $expiresAt = date('Y-m-d H:i:s', time() + 3600);
++
++            $stmt = $pdo->prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)");
++            $stmt->execute([$email, $hashedToken, $expiresAt]);
++
++            // In production: send $token via email instead of returning it
++            echo json_encode([
++                'success' => true,
++                'message' => 'Lien de réinitialisation généré.',
++                'dev_token' => $token
++            ]);
++
++        } catch (\PDOException $e) {
++            http_response_code(500);
++            echo json_encode(['success' => false, 'message' => 'Erreur serveur : ' . $e->getMessage()]);
++        }
++    }
++
++    public static function resetPassword($data) {
++        $token = isset($data['token']) ? trim($data['token']) : '';
++        $password = isset($data['password']) ? $data['password'] : '';
++
++        if (empty($token) || empty($password)) {
++            http_response_code(400);
++            echo json_encode(['success' => false, 'message' => 'Token et nouveau mot de passe requis.']);
++            return;
++        }
++
++        if (strlen($password) < 6) {
++            http_response_code(400);
++            echo json_encode(['success' => false, 'message' => 'Le mot de passe doit contenir au moins 6 caractères.']);
++            return;
++        }
++
++        $pdo = DB::connect();
++
++        try {
++            $hashedToken = hash('sha256', $token);
++
++            $stmt = $pdo->prepare("
++                SELECT * FROM password_resets
++                WHERE token = ? AND expires_at > NOW() AND used = 0
++            ");
++            $stmt->execute([$hashedToken]);
++            $reset = $stmt->fetch();
++
++            if (!$reset) {
++                http_response_code(400);
++                echo json_encode(['success' => false, 'message' => 'Token invalide ou expiré. Veuillez recommencer.']);
++                return;
++            }
++
++            $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
++            $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE email = ?");
++            $stmt->execute([$hashedPassword, $reset['email']]);
++
++            $stmt = $pdo->prepare("UPDATE password_resets SET used = 1 WHERE id = ?");
++            $stmt->execute([$reset['id']]);
++
++            echo json_encode([
++                'success' => true,
++                'message' => 'Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter.'
++            ]);
++
++        } catch (\PDOException $e) {
++            http_response_code(500);
++            echo json_encode(['success' => false, 'message' => 'Erreur serveur : ' . $e->getMessage()]);
++        }
++    }
+ }
+diff --git a/back-end/index.php b/back-end/index.php
+index 3dffa0c..e9d0053 100644
+--- a/back-end/index.php
++++ b/back-end/index.php
+@@ -124,6 +124,26 @@ switch ($route) {
+         }
+         break;
+ 
++    case '/api/auth/forgot-password':
++        if ($method === 'POST') {
++            require_once __DIR__ . '/controllers/AuthController.php';
++            AuthController::forgotPassword($input_data);
++        } else {
++            http_response_code(405);
++            echo json_encode(['success' => false, 'message' => 'Méthode non autorisée. POST requis.']);
++        }
++        break;
++
++    case '/api/auth/reset-password':
++        if ($method === 'POST') {
++            require_once __DIR__ . '/controllers/AuthController.php';
++            AuthController::resetPassword($input_data);
++        } else {
++            http_response_code(405);
++            echo json_encode(['success' => false, 'message' => 'Méthode non autorisée. POST requis.']);
++        }
++        break;
++
+     // -----------------------------------------------------------------
+     // AI TOOLS PUBLIC & USER ROUTES
+     // -----------------------------------------------------------------
+diff --git a/back-end/password_resets.sql b/back-end/password_resets.sql
+new file mode 100644
+index 0000000..11cd591
+--- /dev/null
++++ b/back-end/password_resets.sql
+@@ -0,0 +1,13 @@
++-- Migration: Password Reset Tokens
++-- Run once against the daleel_ai database
++
++CREATE TABLE IF NOT EXISTS password_resets (
++    id          INT AUTO_INCREMENT PRIMARY KEY,
++    email       VARCHAR(255) NOT NULL,
++    token       VARCHAR(64)  NOT NULL,
++    expires_at  DATETIME     NOT NULL,
++    used        TINYINT(1)   NOT NULL DEFAULT 0,
++    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    INDEX idx_token (token),
++    INDEX idx_email (email)
++) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+diff --git a/front-end/package-lock.json b/front-end/package-lock.json
+index f00aa5f..fb3c9c2 100644
+--- a/front-end/package-lock.json
++++ b/front-end/package-lock.json
+@@ -10,7 +10,8 @@
+       "dependencies": {
+         "lucide-react": "^1.16.0",
+         "react": "^19.2.6",
+-        "react-dom": "^19.2.6"
++        "react-dom": "^19.2.6",
++        "react-router-dom": "^7.15.1"
+       },
+       "devDependencies": {
+         "@eslint/js": "^10.0.1",
+@@ -1051,6 +1052,19 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/cookie": {
++      "version": "1.1.1",
++      "resolved": "https://registry.npmjs.org/cookie/-/cookie-1.1.1.tgz",
++      "integrity": "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=18"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/express"
++      }
++    },
+     "node_modules/cross-spawn": {
+       "version": "7.0.6",
+       "resolved": "https://registry.npmjs.org/cross-spawn/-/cross-spawn-7.0.6.tgz",
+@@ -2121,6 +2135,44 @@
+         "react": "^19.2.6"
+       }
+     },
++    "node_modules/react-router": {
++      "version": "7.15.1",
++      "resolved": "https://registry.npmjs.org/react-router/-/react-router-7.15.1.tgz",
++      "integrity": "sha512-R8rl9HhgikFYoPJymnUtPXWbnDb3oget6lQnfIoupbt61aT9aOhRkDsY2XRhZRyX1Z/8a5sL74fXmFNm3NRK5A==",
++      "license": "MIT",
++      "dependencies": {
++        "cookie": "^1.0.1",
++        "set-cookie-parser": "^2.6.0"
++      },
++      "engines": {
++        "node": ">=20.0.0"
++      },
++      "peerDependencies": {
++        "react": ">=18",
++        "react-dom": ">=18"
++      },
++      "peerDependenciesMeta": {
++        "react-dom": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/react-router-dom": {
++      "version": "7.15.1",
++      "resolved": "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.15.1.tgz",
++      "integrity": "sha512-AzF62gjY6U9rkMq4RfP/r2EVtQ7DMfNMjyOp/flLTCrtRylLiK4wT4pSq6O8rOXZ2eXdZYJPEYe+ifomiv+Igg==",
++      "license": "MIT",
++      "dependencies": {
++        "react-router": "7.15.1"
++      },
++      "engines": {
++        "node": ">=20.0.0"
++      },
++      "peerDependencies": {
++        "react": ">=18",
++        "react-dom": ">=18"
++      }
++    },
+     "node_modules/rolldown": {
+       "version": "1.0.2",
+       "resolved": "https://registry.npmjs.org/rolldown/-/rolldown-1.0.2.tgz",
+@@ -2171,6 +2223,12 @@
+         "semver": "bin/semver.js"
+       }
+     },
++    "node_modules/set-cookie-parser": {
++      "version": "2.7.2",
++      "resolved": "https://registry.npmjs.org/set-cookie-parser/-/set-cookie-parser-2.7.2.tgz",
++      "integrity": "sha512-oeM1lpU/UvhTxw+g3cIfxXHyJRc/uidd3yK1P242gzHds0udQBYzs3y8j4gCCW+ZJ7ad0yctld8RYO+bdurlvw==",
++      "license": "MIT"
++    },
+     "node_modules/shebang-command": {
+       "version": "2.0.0",
+       "resolved": "https://registry.npmjs.org/shebang-command/-/shebang-command-2.0.0.tgz",
+diff --git a/front-end/package.json b/front-end/package.json
+index c413190..e572298 100644
+--- a/front-end/package.json
++++ b/front-end/package.json
+@@ -12,7 +12,8 @@
+   "dependencies": {
+     "lucide-react": "^1.16.0",
+     "react": "^19.2.6",
+-    "react-dom": "^19.2.6"
++    "react-dom": "^19.2.6",
++    "react-router-dom": "^7.15.1"
+   },
+   "devDependencies": {
+     "@eslint/js": "^10.0.1",
+diff --git a/front-end/src/App.jsx b/front-end/src/App.jsx
+index 5fdfa24..322ca38 100644
+--- a/front-end/src/App.jsx
++++ b/front-end/src/App.jsx
+@@ -1,4 +1,5 @@
+ import { useState, useEffect } from 'react';
++import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+ import { MessageCircle } from 'lucide-react';
+ import './index.css';
+ 
+@@ -11,17 +12,18 @@ import Login from './pages/Login';
+ import Register from './pages/Register';
+ import UserDashboard from './pages/UserDashboard';
+ import AdminDashboard from './pages/AdminDashboard';
++import ForgotPassword from './pages/ForgotPassword';
++import ResetPassword from './pages/ResetPassword';
+ 
+ import { api } from './services/api';
+ 
+-function App() {
+-    const [page, setPage] = useState('home');
++function AppContent() {
++    const navigate = useNavigate();
+     const [user, setUser] = useState(null);
+     const [favorites, setFavorites] = useState([]);
+     const [chatbotOpen, setChatbotOpen] = useState(false);
+     const [trialTool, setTrialTool] = useState(null);
+ 
+-    // Restore session from localStorage on mount
+     useEffect(() => {
+         const savedUser = localStorage.getItem('daleel_ai_user');
+         if (savedUser) {
+@@ -35,7 +37,6 @@ function App() {
+         }
+     }, []);
+ 
+-    // Load favorites when user changes
+     useEffect(() => {
+         if (user) {
+             loadFavorites();
+@@ -71,7 +72,7 @@ function App() {
+ 
+     const handleAuthSuccess = (userData) => {
+         setUser(userData);
+-        setPage('home');
++        navigate('/');
+     };
+ 
+     const handleLogout = () => {
+@@ -80,69 +81,54 @@ function App() {
+         setUser(null);
+         setFavorites([]);
+         setChatbotOpen(false);
+-        setPage('home');
+-    };
+-
+-    const handleOpenTrial = (tool) => {
+-        setTrialTool(tool);
+-    };
+-
+-    const handleSelectToolFromChat = (toolId) => {
+-        setChatbotOpen(false);
+-        setPage('home');
+-    };
+-
+-    // Render the current page
+-    const renderPage = () => {
+-        switch (page) {
+-            case 'login':
+-                return <Login onAuthSuccess={handleAuthSuccess} setPage={setPage} />;
+-            case 'register':
+-                return <Register onAuthSuccess={handleAuthSuccess} setPage={setPage} />;
+-            case 'dashboard':
+-                if (!user) { setPage('login'); return null; }
+-                return (
+-                    <UserDashboard
+-                        user={user}
+-                        favorites={favorites}
+-                        onToggleFav={handleToggleFav}
+-                        setPage={setPage}
+-                        onOpenTrial={handleOpenTrial}
+-                    />
+-                );
+-            case 'admin':
+-                if (!user || user.role_id !== 1) { setPage('home'); return null; }
+-                return <AdminDashboard user={user} />;
+-            case 'home':
+-            default:
+-                return (
+-                    <Home
+-                        user={user}
+-                        onOpenTrial={handleOpenTrial}
+-                        favorites={favorites}
+-                        onToggleFav={handleToggleFav}
+-                    />
+-                );
+-        }
++        navigate('/');
+     };
+ 
+     return (
+         <div className="app-container">
+             <div className="gradient-bg-secondary"></div>
+ 
+-            {/* Floating Navbar */}
+-            <Navbar
+-                user={user}
+-                onLogout={handleLogout}
+-                setPage={setPage}
+-            />
++            <Navbar user={user} onLogout={handleLogout} />
+ 
+-            {/* Main Content */}
+             <main className="main-content">
+-                {renderPage()}
++                <Routes>
++                    <Route path="/" element={
++                        <Home
++                            user={user}
++                            onOpenTrial={(tool) => setTrialTool(tool)}
++                            favorites={favorites}
++                            onToggleFav={handleToggleFav}
++                        />
++                    } />
++                    <Route path="/login" element={
++                        user ? <Navigate to="/" replace /> :
++                        <Login onAuthSuccess={handleAuthSuccess} />
++                    } />
++                    <Route path="/register" element={
++                        user ? <Navigate to="/" replace /> :
++                        <Register onAuthSuccess={handleAuthSuccess} />
++                    } />
++                    <Route path="/dashboard" element={
++                        user
++                            ? <UserDashboard
++                                user={user}
++                                favorites={favorites}
++                                onToggleFav={handleToggleFav}
++                                onOpenTrial={(tool) => setTrialTool(tool)}
++                              />
++                            : <Navigate to="/login" replace />
++                    } />
++                    <Route path="/admin" element={
++                        user?.role_id === 1
++                            ? <AdminDashboard user={user} />
++                            : <Navigate to="/" replace />
++                    } />
++                    <Route path="/forgot-password" element={<ForgotPassword />} />
++                    <Route path="/reset-password" element={<ResetPassword />} />
++                    <Route path="*" element={<Navigate to="/" replace />} />
++                </Routes>
+             </main>
+ 
+-            {/* Footer */}
+             <footer style={{
+                 textAlign: 'center',
+                 padding: '24px 20px',
+@@ -156,7 +142,6 @@ function App() {
+                 <span> — Portail Académique de Référencement d'Outils d'Intelligence Artificielle</span>
+             </footer>
+ 
+-            {/* ── Floating Chatbot (Registered users only) ── */}
+             {user && (
+                 <>
+                     {!chatbotOpen && (
+@@ -172,13 +157,12 @@ function App() {
+                         <ChatbotWindow
+                             user={user}
+                             onClose={() => setChatbotOpen(false)}
+-                            onSelectTool={handleSelectToolFromChat}
++                            onSelectTool={() => setChatbotOpen(false)}
+                         />
+                     )}
+                 </>
+             )}
+ 
+-            {/* ── Free Trial Popup Overlay ── */}
+             {trialTool && (
+                 <FreeTrialPopup
+                     tool={trialTool}
+@@ -190,4 +174,12 @@ function App() {
+     );
+ }
+ 
++function App() {
++    return (
++        <BrowserRouter>
++            <AppContent />
++        </BrowserRouter>
++    );
++}
++
+ export default App;
+diff --git a/front-end/src/components/Navbar.jsx b/front-end/src/components/Navbar.jsx
+index ce8b065..f17130f 100644
+--- a/front-end/src/components/Navbar.jsx
++++ b/front-end/src/components/Navbar.jsx
+@@ -1,7 +1,10 @@
+ import React from 'react';
++import { useNavigate } from 'react-router-dom';
+ import { Compass, User, LogOut, LayoutDashboard, Database, PlusCircle } from 'lucide-react';
+ 
+-export default function Navbar({ user, onLogout, setPage }) {
++export default function Navbar({ user, onLogout }) {
++    const navigate = useNavigate();
++
+     return (
+         <nav className="glass-panel" style={{
+             position: 'fixed',
+@@ -19,7 +22,7 @@ export default function Navbar({ user, onLogout, setPage }) {
+         }}>
+             {/* Logo / Brand */}
+             <div
+-                onClick={() => setPage('home')}
++                onClick={() => navigate('/')}
+                 style={{
+                     display: 'flex',
+                     alignItems: 'center',
+@@ -63,7 +66,7 @@ export default function Navbar({ user, onLogout, setPage }) {
+                 gap: '16px'
+             }}>
+                 <button
+-                    onClick={() => setPage('home')}
++                    onClick={() => navigate('/')}
+                     className="btn-secondary"
+                     style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                 >
+@@ -77,7 +80,7 @@ export default function Navbar({ user, onLogout, setPage }) {
+                         {user.role_id === 1 ? (
+                             /* Admin features */
+                             <button
+-                                onClick={() => setPage('admin')}
++                                onClick={() => navigate('/admin')}
+                                 className="btn-primary"
+                                 style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                             >
+@@ -88,7 +91,7 @@ export default function Navbar({ user, onLogout, setPage }) {
+                             /* Registered user features */
+                             <>
+                                 <button
+-                                    onClick={() => setPage('dashboard')}
++                                    onClick={() => navigate('/dashboard')}
+                                     className="btn-secondary"
+                                     style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                                 >
+@@ -96,7 +99,7 @@ export default function Navbar({ user, onLogout, setPage }) {
+                                     Mon Espace
+                                 </button>
+                                 <button
+-                                    onClick={() => setPage('submit')}
++                                    onClick={() => navigate('/dashboard')}
+                                     className="btn-primary"
+                                     style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                                 >
+@@ -136,14 +139,14 @@ export default function Navbar({ user, onLogout, setPage }) {
+                     /* Guest links */
+                     <div style={{ display: 'flex', gap: '10px' }}>
+                         <button
+-                            onClick={() => setPage('login')}
++                            onClick={() => navigate('/login')}
+                             className="btn-secondary"
+                             style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                         >
+                             Connexion
+                         </button>
+                         <button
+-                            onClick={() => setPage('register')}
++                            onClick={() => navigate('/register')}
+                             className="btn-primary"
+                             style={{ padding: '8px 18px', fontSize: '0.9rem' }}
+                         >
+diff --git a/front-end/src/pages/ForgotPassword.jsx b/front-end/src/pages/ForgotPassword.jsx
+new file mode 100644
+index 0000000..ef218c2
+--- /dev/null
++++ b/front-end/src/pages/ForgotPassword.jsx
+@@ -0,0 +1,223 @@
++import React, { useState } from 'react';
++import { useNavigate } from 'react-router-dom';
++import { api } from '../services/api';
++import { Mail, ShieldAlert, CheckCircle, KeyRound, ArrowLeft, Copy } from 'lucide-react';
++
++export default function ForgotPassword() {
++    const navigate = useNavigate();
++    const [email, setEmail] = useState('');
++    const [loading, setLoading] = useState(false);
++    const [error, setError] = useState('');
++    const [devToken, setDevToken] = useState('');
++    const [submitted, setSubmitted] = useState(false);
++
++    const handleSubmit = async (e) => {
++        e.preventDefault();
++        setLoading(true);
++        setError('');
++
++        try {
++            const res = await api.auth.forgotPassword(email);
++            if (res.success) {
++                setSubmitted(true);
++                if (res.dev_token) {
++                    setDevToken(res.dev_token);
++                }
++            } else {
++                setError(res.message || "Une erreur est survenue.");
++            }
++        } catch (err) {
++            setError(err.message || "Impossible de contacter le serveur.");
++        } finally {
++            setLoading(false);
++        }
++    };
++
++    return (
++        <div style={{
++            display: 'flex',
++            alignItems: 'center',
++            justifyContent: 'center',
++            minHeight: '75vh',
++            position: 'relative'
++        }}>
++            <div className="gradient-bg"></div>
++
++            <div className="glass-panel" style={{
++                width: '100%',
++                maxWidth: '450px',
++                padding: '40px',
++                background: 'rgba(16, 17, 26, 0.85)',
++                border: '1px solid rgba(168, 85, 247, 0.25)',
++                borderRadius: '20px',
++                position: 'relative',
++                zIndex: 1
++            }}>
++                <div style={{ textAlign: 'center', marginBottom: '32px' }}>
++                    <div style={{
++                        width: '50px',
++                        height: '50px',
++                        borderRadius: '12px',
++                        background: 'linear-gradient(135deg, #a855f7 0%, #3b82f6 100%)',
++                        display: 'flex',
++                        alignItems: 'center',
++                        justifyContent: 'center',
++                        margin: '0 auto 16px auto',
++                        boxShadow: '0 0 20px rgba(168, 85, 247, 0.6)'
++                    }}>
++                        <KeyRound size={24} color="white" />
++                    </div>
++                    <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'white', fontFamily: 'var(--font-display)' }}>
++                        Mot de passe oublié
++                    </h2>
++                    <p style={{ fontSize: '0.88rem', color: '#9ca3af', marginTop: '6px' }}>
++                        Saisissez votre email pour recevoir un lien de réinitialisation
++                    </p>
++                </div>
++
++                {error && (
++                    <div style={{
++                        display: 'flex',
++                        alignItems: 'center',
++                        gap: '10px',
++                        background: 'rgba(244, 63, 94, 0.1)',
++                        border: '1px solid rgba(244, 63, 94, 0.2)',
++                        padding: '12px 16px',
++                        borderRadius: '10px',
++                        color: '#f43f5e',
++                        fontSize: '0.85rem',
++                        marginBottom: '20px'
++                    }}>
++                        <ShieldAlert size={18} style={{ flexShrink: 0 }} />
++                        <span>{error}</span>
++                    </div>
++                )}
++
++                {submitted ? (
++                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
++                        <div style={{
++                            display: 'flex',
++                            alignItems: 'flex-start',
++                            gap: '10px',
++                            background: 'rgba(16, 185, 129, 0.1)',
++                            border: '1px solid rgba(16, 185, 129, 0.2)',
++                            padding: '14px 16px',
++                            borderRadius: '10px',
++                            color: '#10b981',
++                            fontSize: '0.85rem'
++                        }}>
++                            <CheckCircle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
++                            <span>
++                                Si cette adresse est enregistrée, un lien de réinitialisation a été généré.
++                            </span>
++                        </div>
++
++                        {devToken && (
++                            <div style={{
++                                background: 'rgba(251, 191, 36, 0.08)',
++                                border: '1px solid rgba(251, 191, 36, 0.25)',
++                                padding: '14px 16px',
++                                borderRadius: '10px',
++                                fontSize: '0.8rem'
++                            }}>
++                                <div style={{ color: '#fbbf24', fontWeight: 600, marginBottom: '8px' }}>
++                                    Mode développement — token de réinitialisation :
++                                </div>
++                                <div style={{
++                                    display: 'flex',
++                                    alignItems: 'center',
++                                    gap: '8px',
++                                    background: 'rgba(0,0,0,0.3)',
++                                    padding: '8px 12px',
++                                    borderRadius: '8px'
++                                }}>
++                                    <code style={{ color: '#e5e7eb', wordBreak: 'break-all', flex: 1, fontSize: '0.75rem' }}>
++                                        {devToken}
++                                    </code>
++                                    <button
++                                        onClick={() => navigator.clipboard.writeText(devToken)}
++                                        style={{ background: 'transparent', color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}
++                                        title="Copier"
++                                    >
++                                        <Copy size={14} />
++                                    </button>
++                                </div>
++                                <button
++                                    onClick={() => navigate(`/reset-password?token=${devToken}`)}
++                                    className="btn-primary"
++                                    style={{ width: '100%', justifyContent: 'center', marginTop: '12px', padding: '10px' }}
++                                >
++                                    Réinitialiser le mot de passe
++                                </button>
++                            </div>
++                        )}
++
++                        <button
++                            onClick={() => navigate('/login')}
++                            style={{
++                                display: 'flex',
++                                alignItems: 'center',
++                                gap: '6px',
++                                background: 'transparent',
++                                color: '#9ca3af',
++                                cursor: 'pointer',
++                                fontSize: '0.85rem',
++                                justifyContent: 'center'
++                            }}
++                        >
++                            <ArrowLeft size={14} /> Retour à la connexion
++                        </button>
++                    </div>
++                ) : (
++                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
++                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
++                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#d946ef' }}>
++                                Adresse Email
++                            </label>
++                            <div style={{ position: 'relative' }}>
++                                <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', display: 'flex' }}>
++                                    <Mail size={16} />
++                                </div>
++                                <input
++                                    type="email"
++                                    value={email}
++                                    onChange={(e) => setEmail(e.target.value)}
++                                    placeholder="votre.email@universite.fr"
++                                    className="input-field"
++                                    style={{ paddingLeft: '44px' }}
++                                    required
++                                />
++                            </div>
++                        </div>
++
++                        <button
++                            type="submit"
++                            className="btn-primary"
++                            disabled={loading}
++                            style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '1rem' }}
++                        >
++                            {loading ? 'Envoi en cours...' : 'Envoyer le lien'}
++                        </button>
++
++                        <button
++                            type="button"
++                            onClick={() => navigate('/login')}
++                            style={{
++                                display: 'flex',
++                                alignItems: 'center',
++                                gap: '6px',
++                                background: 'transparent',
++                                color: '#9ca3af',
++                                cursor: 'pointer',
++                                fontSize: '0.85rem',
++                                justifyContent: 'center'
++                            }}
++                        >
++                            <ArrowLeft size={14} /> Retour à la connexion
++                        </button>
++                    </form>
++                )}
++            </div>
++        </div>
++    );
++}
+diff --git a/front-end/src/pages/Login.jsx b/front-end/src/pages/Login.jsx
+index 2cee50d..f9bb262 100644
+--- a/front-end/src/pages/Login.jsx
++++ b/front-end/src/pages/Login.jsx
+@@ -1,8 +1,10 @@
+ import React, { useState } from 'react';
++import { useNavigate } from 'react-router-dom';
+ import { api } from '../services/api';
+ import { LogIn, Mail, Lock, ShieldAlert, Sparkles } from 'lucide-react';
+ 
+-export default function Login({ onAuthSuccess, setPage }) {
++export default function Login({ onAuthSuccess }) {
++    const navigate = useNavigate();
+     const [email, setEmail] = useState('');
+     const [password, setPassword] = useState('');
+     const [loading, setLoading] = useState(false);
+@@ -16,11 +18,9 @@ export default function Login({ onAuthSuccess, setPage }) {
+         try {
+             const res = await api.auth.login(email, password);
+             if (res.success) {
+-                // Save tokens
+                 localStorage.setItem('daleel_ai_token', res.token);
+                 localStorage.setItem('daleel_ai_user', JSON.stringify(res.user));
+                 onAuthSuccess(res.user);
+-                setPage('home');
+             } else {
+                 setError(res.message || "Identifiants incorrects.");
+             }
+@@ -119,6 +119,19 @@ export default function Login({ onAuthSuccess, setPage }) {
+                             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#d946ef' }}>
+                                 Mot de Passe
+                             </label>
++                            <button
++                                type="button"
++                                onClick={() => navigate('/forgot-password')}
++                                style={{
++                                    background: 'transparent',
++                                    color: '#9ca3af',
++                                    fontSize: '0.75rem',
++                                    cursor: 'pointer',
++                                    textDecoration: 'underline'
++                                }}
++                            >
++                                Mot de passe oublié ?
++                            </button>
+                         </div>
+                         <div style={{ position: 'relative' }}>
+                             <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', display: 'flex' }}>
+@@ -165,7 +178,7 @@ export default function Login({ onAuthSuccess, setPage }) {
+                 }}>
+                     <span style={{ color: '#9ca3af' }}>Vous n'avez pas encore de compte universitaire ?</span>
+                     <button
+-                        onClick={() => setPage('register')}
++                        onClick={() => navigate('/register')}
+                         style={{
+                             background: 'transparent',
+                             color: '#d946ef',
+diff --git a/front-end/src/pages/Register.jsx b/front-end/src/pages/Register.jsx
+index 4cdbca6..b5e990b 100644
+--- a/front-end/src/pages/Register.jsx
++++ b/front-end/src/pages/Register.jsx
+@@ -1,8 +1,10 @@
+ import React, { useState } from 'react';
++import { useNavigate } from 'react-router-dom';
+ import { api } from '../services/api';
+ import { UserPlus, User, Mail, Lock, ShieldAlert, CheckCircle } from 'lucide-react';
+ 
+-export default function Register({ onAuthSuccess, setPage }) {
++export default function Register({ onAuthSuccess }) {
++    const navigate = useNavigate();
+     const [username, setUsername] = useState('');
+     const [email, setEmail] = useState('');
+     const [password, setPassword] = useState('');
+@@ -21,7 +23,6 @@ export default function Register({ onAuthSuccess, setPage }) {
+             if (res.success) {
+                 setSuccess("Votre compte universitaire a été créé avec succès ! Authentification en cours...");
+ 
+-                // Immediately auto-login for perfect UX
+                 setTimeout(async () => {
+                     try {
+                         const loginRes = await api.auth.login(email, password);
+@@ -29,10 +30,9 @@ export default function Register({ onAuthSuccess, setPage }) {
+                             localStorage.setItem('daleel_ai_token', loginRes.token);
+                             localStorage.setItem('daleel_ai_user', JSON.stringify(loginRes.user));
+                             onAuthSuccess(loginRes.user);
+-                            setPage('home');
+                         }
+                     } catch (err) {
+-                        setPage('login');
++                        navigate('/login');
+                     }
+                 }, 1500);
+             } else {
+@@ -216,7 +216,7 @@ export default function Register({ onAuthSuccess, setPage }) {
+                 }}>
+                     <span style={{ color: '#9ca3af' }}>Vous possédez déjà un compte ?</span>
+                     <button
+-                        onClick={() => setPage('login')}
++                        onClick={() => navigate('/login')}
+                         style={{
+                             background: 'transparent',
+                             color: '#d946ef',
+diff --git a/front-end/src/pages/ResetPassword.jsx b/front-end/src/pages/ResetPassword.jsx
+new file mode 100644
+index 0000000..4765423
+--- /dev/null
++++ b/front-end/src/pages/ResetPassword.jsx
+@@ -0,0 +1,216 @@
++import React, { useState } from 'react';
++import { useNavigate, useSearchParams } from 'react-router-dom';
++import { api } from '../services/api';
++import { Lock, ShieldAlert, CheckCircle, KeyRound, ArrowLeft } from 'lucide-react';
++
++export default function ResetPassword() {
++    const navigate = useNavigate();
++    const [searchParams] = useSearchParams();
++    const token = searchParams.get('token') || '';
++
++    const [password, setPassword] = useState('');
++    const [confirm, setConfirm] = useState('');
++    const [loading, setLoading] = useState(false);
++    const [error, setError] = useState('');
++    const [success, setSuccess] = useState(false);
++
++    const handleSubmit = async (e) => {
++        e.preventDefault();
++        if (password !== confirm) {
++            setError('Les mots de passe ne correspondent pas.');
++            return;
++        }
++        if (password.length < 6) {
++            setError('Le mot de passe doit contenir au moins 6 caractères.');
++            return;
++        }
++
++        setLoading(true);
++        setError('');
++
++        try {
++            const res = await api.auth.resetPassword(token, password);
++            if (res.success) {
++                setSuccess(true);
++                setTimeout(() => navigate('/login'), 2500);
++            } else {
++                setError(res.message || "Erreur lors de la réinitialisation.");
++            }
++        } catch (err) {
++            setError(err.message || "Impossible de contacter le serveur.");
++        } finally {
++            setLoading(false);
++        }
++    };
++
++    return (
++        <div style={{
++            display: 'flex',
++            alignItems: 'center',
++            justifyContent: 'center',
++            minHeight: '75vh',
++            position: 'relative'
++        }}>
++            <div className="gradient-bg"></div>
++
++            <div className="glass-panel" style={{
++                width: '100%',
++                maxWidth: '450px',
++                padding: '40px',
++                background: 'rgba(16, 17, 26, 0.85)',
++                border: '1px solid rgba(168, 85, 247, 0.25)',
++                borderRadius: '20px',
++                position: 'relative',
++                zIndex: 1
++            }}>
++                <div style={{ textAlign: 'center', marginBottom: '32px' }}>
++                    <div style={{
++                        width: '50px',
++                        height: '50px',
++                        borderRadius: '12px',
++                        background: 'linear-gradient(135deg, #a855f7 0%, #3b82f6 100%)',
++                        display: 'flex',
++                        alignItems: 'center',
++                        justifyContent: 'center',
++                        margin: '0 auto 16px auto',
++                        boxShadow: '0 0 20px rgba(168, 85, 247, 0.6)'
++                    }}>
++                        <KeyRound size={24} color="white" />
++                    </div>
++                    <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'white', fontFamily: 'var(--font-display)' }}>
++                        Nouveau mot de passe
++                    </h2>
++                    <p style={{ fontSize: '0.88rem', color: '#9ca3af', marginTop: '6px' }}>
++                        Choisissez un nouveau mot de passe sécurisé
++                    </p>
++                </div>
++
++                {!token && (
++                    <div style={{
++                        display: 'flex',
++                        alignItems: 'center',
++                        gap: '10px',
++                        background: 'rgba(244, 63, 94, 0.1)',
++                        border: '1px solid rgba(244, 63, 94, 0.2)',
++                        padding: '12px 16px',
++                        borderRadius: '10px',
++                        color: '#f43f5e',
++                        fontSize: '0.85rem',
++                        marginBottom: '20px'
++                    }}>
++                        <ShieldAlert size={18} style={{ flexShrink: 0 }} />
++                        <span>Lien invalide. Veuillez recommencer depuis "Mot de passe oublié".</span>
++                    </div>
++                )}
++
++                {error && (
++                    <div style={{
++                        display: 'flex',
++                        alignItems: 'center',
++                        gap: '10px',
++                        background: 'rgba(244, 63, 94, 0.1)',
++                        border: '1px solid rgba(244, 63, 94, 0.2)',
++                        padding: '12px 16px',
++                        borderRadius: '10px',
++                        color: '#f43f5e',
++                        fontSize: '0.85rem',
++                        marginBottom: '20px'
++                    }}>
++                        <ShieldAlert size={18} style={{ flexShrink: 0 }} />
++                        <span>{error}</span>
++                    </div>
++                )}
++
++                {success ? (
++                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
++                        <div style={{
++                            display: 'flex',
++                            alignItems: 'center',
++                            gap: '10px',
++                            background: 'rgba(16, 185, 129, 0.1)',
++                            border: '1px solid rgba(16, 185, 129, 0.2)',
++                            padding: '14px 16px',
++                            borderRadius: '10px',
++                            color: '#10b981',
++                            fontSize: '0.85rem',
++                            width: '100%'
++                        }}>
++                            <CheckCircle size={18} style={{ flexShrink: 0 }} />
++                            <span>Mot de passe réinitialisé ! Redirection vers la connexion...</span>
++                        </div>
++                    </div>
++                ) : (
++                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
++                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
++                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#d946ef' }}>
++                                Nouveau mot de passe
++                            </label>
++                            <div style={{ position: 'relative' }}>
++                                <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', display: 'flex' }}>
++                                    <Lock size={16} />
++                                </div>
++                                <input
++                                    type="password"
++                                    value={password}
++                                    onChange={(e) => setPassword(e.target.value)}
++                                    placeholder="••••••••••••"
++                                    className="input-field"
++                                    style={{ paddingLeft: '44px' }}
++                                    required
++                                    disabled={!token}
++                                />
++                            </div>
++                        </div>
++
++                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
++                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#d946ef' }}>
++                                Confirmer le mot de passe
++                            </label>
++                            <div style={{ position: 'relative' }}>
++                                <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', display: 'flex' }}>
++                                    <Lock size={16} />
++                                </div>
++                                <input
++                                    type="password"
++                                    value={confirm}
++                                    onChange={(e) => setConfirm(e.target.value)}
++                                    placeholder="••••••••••••"
++                                    className="input-field"
++                                    style={{ paddingLeft: '44px' }}
++                                    required
++                                    disabled={!token}
++                                />
++                            </div>
++                        </div>
++
++                        <button
++                            type="submit"
++                            className="btn-primary"
++                            disabled={loading || !token}
++                            style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '1rem' }}
++                        >
++                            {loading ? 'Réinitialisation...' : 'Changer le mot de passe'}
++                        </button>
++
++                        <button
++                            type="button"
++                            onClick={() => navigate('/login')}
++                            style={{
++                                display: 'flex',
++                                alignItems: 'center',
++                                gap: '6px',
++                                background: 'transparent',
++                                color: '#9ca3af',
++                                cursor: 'pointer',
++                                fontSize: '0.85rem',
++                                justifyContent: 'center'
++                            }}
++                        >
++                            <ArrowLeft size={14} /> Retour à la connexion
++                        </button>
++                    </form>
++                )}
++            </div>
++        </div>
++    );
++}
+diff --git a/front-end/src/pages/UserDashboard.jsx b/front-end/src/pages/UserDashboard.jsx
+index 7980631..c2091df 100644
+--- a/front-end/src/pages/UserDashboard.jsx
++++ b/front-end/src/pages/UserDashboard.jsx
+@@ -1,9 +1,11 @@
+ import React, { useState, useEffect } from 'react';
++import { useNavigate } from 'react-router-dom';
+ import { api } from '../services/api';
+ import ToolCard from '../components/ToolCard';
+ import { Heart, PlusCircle, ChevronDown, ChevronUp, CheckCircle, XCircle, ShieldAlert, Globe, Tag, FileText, Layers } from 'lucide-react';
+ 
+-export default function UserDashboard({ user, favorites, onToggleFav, setPage, onOpenTrial }) {
++export default function UserDashboard({ user, favorites, onToggleFav, onOpenTrial }) {
++    const navigate = useNavigate();
+     const [favTools, setFavTools] = useState([]);
+     const [loadingFavs, setLoadingFavs] = useState(true);
+     const [showSubmitForm, setShowSubmitForm] = useState(false);
+@@ -376,7 +378,7 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
+                         <p style={{ color: '#6b7280', fontSize: '0.88rem', maxWidth: '400px', margin: '0 auto' }}>
+                             Explorez notre catalogue d'outils IA et cliquez sur le cœur pour sauvegarder vos préférés ici.
+                         </p>
+-                        <button onClick={() => setPage('home')} className="btn-primary" style={{ marginTop: '8px' }}>
++                        <button onClick={() => navigate('/')} className="btn-primary" style={{ marginTop: '8px' }}>
+                             Explorer les Outils
+                         </button>
+                     </div>
+diff --git a/front-end/src/services/api.js b/front-end/src/services/api.js
+index 31635c4..73e361d 100644
+--- a/front-end/src/services/api.js
++++ b/front-end/src/services/api.js
+@@ -65,8 +65,20 @@ export const api = {
+                 body: JSON.stringify({ email, password })
+             }),
+             
+-        getProfile: () => 
+-            request('/auth/profile', { method: 'GET' })
++        getProfile: () =>
++            request('/auth/profile', { method: 'GET' }),
++
++        forgotPassword: (email) =>
++            request('/auth/forgot-password', {
++                method: 'POST',
++                body: JSON.stringify({ email })
++            }),
++
++        resetPassword: (token, password) =>
++            request('/auth/reset-password', {
++                method: 'POST',
++                body: JSON.stringify({ token, password })
++            })
+     },
+ 
+     // -----------------------------------------------------------------
+-- 
+2.43.0
+

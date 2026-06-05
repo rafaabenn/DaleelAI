@@ -33,6 +33,11 @@ if (!empty($raw_input)) {
     }
 }
 
+// Fallback for form-data or urlencoded payloads (e.g. from n8n or Postman)
+if (empty($input_data) && !empty($_POST)) {
+    $input_data = $_POST;
+}
+
 // Extract the request route based on URL path
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
@@ -177,6 +182,38 @@ switch ($route) {
         }
         break;
 
+    case '/api/tools/my-submissions':
+        if ($method === 'GET') {
+            $user = authenticate();
+            require_once __DIR__ . '/controllers/ToolController.php';
+            ToolController::getMySubmissions($user['id']);
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'MÃ©thode non autorisÃ©e. GET requis.']);
+        }
+        break;
+
+    case '/api/tools/resubmit':
+        if ($method === 'POST') {
+            $user = authenticate();
+            require_once __DIR__ . '/controllers/ToolController.php';
+            ToolController::resubmitTool($input_data, $user['id']);
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'MÃ©thode non autorisÃ©e. POST requis.']);
+        }
+        break;
+
+        case '/api/tools/update-status':
+    if ($method === 'POST') {
+        require_once __DIR__ . '/controllers/ToolController.php';
+        ToolController::updateStatus($input_data);
+    } else {
+        http_response_code(405);
+        echo json_encode(['success' => false, 'message' => 'Méthode non autorisée.']);
+    }
+    break;
+
     case '/api/tools/favorite':
         if ($method === 'POST') {
             $user = authenticate();
@@ -205,6 +242,28 @@ switch ($route) {
             $user = authenticate();
             require_once __DIR__ . '/controllers/ToolController.php';
             ToolController::submitReview($input_data, $user['id']);
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'Méthode non autorisée. POST requis.']);
+        }
+        break;
+
+    case '/api/notifications':
+        if ($method === 'GET') {
+            $user = authenticate();
+            require_once __DIR__ . '/controllers/ToolController.php';
+            ToolController::getNotifications($user['id']);
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'Méthode non autorisée. GET requis.']);
+        }
+        break;
+
+    case '/api/notifications/read':
+        if ($method === 'POST') {
+            $user = authenticate();
+            require_once __DIR__ . '/controllers/ToolController.php';
+            ToolController::markNotificationRead($input_data, $user['id']);
         } else {
             http_response_code(405);
             echo json_encode(['success' => false, 'message' => 'Méthode non autorisée. POST requis.']);
