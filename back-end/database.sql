@@ -1,8 +1,3 @@
--- =====================================================================
--- DALEEL AI DATABASE SCHEMA (MySQL)
--- Conçu selon la méthode Merise (MCD -> MLD -> MPD)
--- Comprend exactement 15 tables avec contraintes d'intégrité référentielle
--- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS `daleel_ai` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `daleel_ai`;

@@ -59,7 +59,7 @@ export default function ToolCard({ tool, isFavorited, onToggleFav, onSelect, use
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         {/* Logo */}
                         <img 
-                            src={tool.logo_url} 
+                            src={`https://icon.horse/icon/${new URL(tool.website_url).hostname}`}
                             alt={`${tool.name} logo`} 
                             onError={(e) => {
                                 e.target.src = 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=100';
