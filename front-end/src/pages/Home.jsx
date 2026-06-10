@@ -3,7 +3,7 @@ import { api } from '../services/api';
 import SidebarFilters from '../components/SidebarFilters';
 import ToolCard from '../components/ToolCard';
 import ToolDetailModal from '../components/ToolDetailModal';
-import { Search, Sparkles, Star, Award, Compass, RefreshCw, Zap } from 'lucide-react';
+import { Search, Sparkles, Star, Award, Compass, RefreshCw, Zap, UserCheck } from 'lucide-react';
 
 export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
     const [tools, setTools] = useState([]);
@@ -19,6 +19,8 @@ export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
     const [loading, setLoading] = useState(true);
     const [selectedToolId, setSelectedToolId] = useState(null);
     const [stats, setStats] = useState({ total_tools: 0, avg_rating: 0 });
+    const [recommended, setRecommended] = useState([]);
+    const [loadingRec, setLoadingRec] = useState(false);
 
     useEffect(() => {
         // Retrieve some basic quick statistics for the header
@@ -34,6 +36,21 @@ export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
             })
             .catch(err => console.error("Erreur stats rapides", err));
     }, []);
+
+    const loadRecommended = async () => {
+        if (!user) return;
+        setLoadingRec(true);
+        try {
+            const res = await api.tools.getRecommended();
+            if (res.success && res.has_profile) {
+                setRecommended(res.tools);
+            }
+        } catch (err) {
+            // Silencieux : les recommandations sont optionnelles
+        } finally {
+            setLoadingRec(false);
+        }
+    };
 
     const loadTools = async () => {
         setLoading(true);
@@ -52,6 +69,10 @@ export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
     useEffect(() => {
         loadTools();
     }, [filters]);
+
+    useEffect(() => {
+        loadRecommended();
+    }, [user]);
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();
@@ -192,6 +213,110 @@ export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
 
                 {/* 2. Search & Tool Grid lists on right */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+                    {/* Section recommandations personnalisées */}
+                    {user && (loadingRec || recommended.length > 0) && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{
+                                    width: '30px', height: '30px', borderRadius: '8px',
+                                    background: 'rgba(16, 185, 129, 0.12)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}>
+                                    <UserCheck size={16} color="#10b981" />
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'white' }}>
+                                        Pour vous
+                                    </span>
+                                    <span style={{ fontSize: '0.72rem', color: '#6b7280', marginLeft: '8px' }}>
+                                        Basé sur vos consultations et favoris
+                                    </span>
+                                </div>
+                            </div>
+
+                            {loadingRec ? (
+                                <div style={{ display: 'flex', gap: '12px' }}>
+                                    {[1, 2, 3].map(i => (
+                                        <div key={i} style={{
+                                            flex: '0 0 200px', height: '120px',
+                                            borderRadius: '12px',
+                                            background: 'rgba(255,255,255,0.03)',
+                                            border: '1px solid rgba(255,255,255,0.05)',
+                                            animation: 'pulse 1.5s ease-in-out infinite'
+                                        }} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div style={{
+                                    display: 'flex', gap: '12px',
+                                    overflowX: 'auto', paddingBottom: '4px'
+                                }}>
+                                    {recommended.map(tool => (
+                                        <div
+                                            key={tool.id}
+                                            onClick={() => setSelectedToolId(tool.id)}
+                                            style={{
+                                                flex: '0 0 220px',
+                                                padding: '14px',
+                                                borderRadius: '12px',
+                                                background: 'rgba(16, 185, 129, 0.04)',
+                                                border: '1px solid rgba(16, 185, 129, 0.15)',
+                                                cursor: 'pointer',
+                                                transition: 'border-color 0.2s, background 0.2s'
+                                            }}
+                                            onMouseEnter={e => {
+                                                e.currentTarget.style.borderColor = 'rgba(16,185,129,0.4)';
+                                                e.currentTarget.style.background = 'rgba(16,185,129,0.08)';
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.borderColor = 'rgba(16,185,129,0.15)';
+                                                e.currentTarget.style.background = 'rgba(16,185,129,0.04)';
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                                {tool.logo_url ? (
+                                                    <img src={tool.logo_url} alt={tool.name}
+                                                        style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'contain' }}
+                                                        onError={e => { e.target.style.display = 'none'; }}
+                                                    />
+                                                ) : (
+                                                    <div style={{
+                                                        width: '28px', height: '28px', borderRadius: '6px',
+                                                        background: 'rgba(16,185,129,0.15)',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        fontSize: '0.8rem', fontWeight: 700, color: '#10b981'
+                                                    }}>
+                                                        {tool.name.charAt(0)}
+                                                    </div>
+                                                )}
+                                                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
+                                                    {tool.name}
+                                                </span>
+                                            </div>
+                                            <p style={{ fontSize: '0.75rem', color: '#9ca3af', lineHeight: '1.4', margin: 0,
+                                                display: '-webkit-box', WebkitLineClamp: 2,
+                                                WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                                            }}>
+                                                {tool.short_description}
+                                            </p>
+                                            {tool.average_rating > 0 && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px' }}>
+                                                    <Star size={11} color="#f59e0b" fill="#f59e0b" />
+                                                    <span style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 600 }}>
+                                                        {parseFloat(tool.average_rating).toFixed(1)}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '4px 0' }} />
+                        </div>
+                    )}
+
                     {/* Integrated Search Input Form */}
                     <form onSubmit={handleSearchSubmit} className="glass-panel" style={{
                         padding: '6px',

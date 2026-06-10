@@ -401,6 +401,33 @@ switch ($route) {
         break;
 
     // -----------------------------------------------------------------
+    // PERSONALISATION ROUTES
+    // -----------------------------------------------------------------
+    case '/api/tools/click':
+        if ($method === 'POST') {
+            $tool_id = isset($input_data['tool_id']) ? (int)$input_data['tool_id'] : 0;
+            $user_id = 0;
+            try { $u = authenticate(); $user_id = $u['id']; } catch (Exception $e) {}
+            require_once __DIR__ . '/controllers/ToolController.php';
+            ToolController::logClick($tool_id, $user_id);
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'Méthode non autorisée.']);
+        }
+        break;
+
+    case '/api/tools/recommended':
+        if ($method === 'GET') {
+            $user = authenticate();
+            require_once __DIR__ . '/controllers/ToolController.php';
+            ToolController::getRecommended($user['id']);
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'Méthode non autorisée.']);
+        }
+        break;
+
+    // -----------------------------------------------------------------
     // FALLBACK
     // -----------------------------------------------------------------
     default:

@@ -1074,4 +1074,106 @@ class ToolController {
         $stmt->execute([$tool_id]);
         return $stmt->fetchAll();
     }
+
+    public static function logClick($tool_id, $user_id) {
+        if ($tool_id <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'ID outil invalide.']);
+            return;
+        }
+        $pdo = DB::connect();
+        try {
+            $stmt = $pdo->prepare("INSERT INTO clicks_logs (tool_id, user_id, action_type) VALUES (?, ?, 'click')");
+            $stmt->execute([$tool_id, $user_id > 0 ? $user_id : null]);
+            echo json_encode(['success' => true]);
+        } catch (\PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public static function getRecommended($user_id) {
+        $pdo = DB::connect();
+        try {
+            // Top catégories : favoris (poids 3) + clics des 30 derniers jours (poids 1)
+            $catStmt = $pdo->prepare("
+                SELECT category_id, SUM(w) AS total_weight
+                FROM (
+                    SELECT tc.category_id, 3 AS w
+                    FROM favorites f
+                    JOIN tool_categories tc ON tc.tool_id = f.tool_id
+                    WHERE f.user_id = :uid1
+                    UNION ALL
+                    SELECT tc.category_id, 1 AS w
+                    FROM clicks_logs cl
+                    JOIN tool_categories tc ON tc.tool_id = cl.tool_id
+                    WHERE cl.user_id = :uid2
+                    AND cl.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                ) interactions
+                GROUP BY category_id
+                ORDER BY total_weight DESC
+                LIMIT 3
+            ");
+            $catStmt->execute([':uid1' => $user_id, ':uid2' => $user_id]);
+            $topCategories = $catStmt->fetchAll();
+
+            if (empty($topCategories)) {
+                echo json_encode(['success' => true, 'tools' => [], 'has_profile' => false]);
+                return;
+            }
+
+            $categoryIds = array_column($topCategories, 'category_id');
+            $placeholders = implode(',', array_fill(0, count($categoryIds), '?'));
+            $params = array_merge($categoryIds, [$user_id]);
+
+            $toolStmt = $pdo->prepare("
+                SELECT DISTINCT t.*,
+                    80 AS score_relevance,
+                    (t.average_rating * 20) AS score_rating,
+                    (100 * EXP(-0.005 * GREATEST(DATEDIFF(NOW(), t.created_at), 0))) AS score_freshness,
+                    (LEAST(
+                        (COALESCE((SELECT COUNT(*) FROM clicks_logs WHERE tool_id = t.id), 0) +
+                         COALESCE((SELECT COUNT(*) FROM favorites WHERE tool_id = t.id), 0) * 4) * 5,
+                        100
+                    )) AS score_popularity
+                FROM ai_tools t
+                JOIN tool_categories tc ON tc.tool_id = t.id
+                WHERE t.status = 'approved'
+                AND tc.category_id IN ($placeholders)
+                AND t.id NOT IN (
+                    SELECT tool_id FROM favorites WHERE user_id = ?
+                )
+                ORDER BY (
+                    (t.average_rating * 20) * 0.40 +
+                    (100 * EXP(-0.005 * GREATEST(DATEDIFF(NOW(), t.created_at), 0))) * 0.30 +
+                    (LEAST(
+                        (COALESCE((SELECT COUNT(*) FROM clicks_logs WHERE tool_id = t.id), 0) +
+                         COALESCE((SELECT COUNT(*) FROM favorites WHERE tool_id = t.id), 0) * 4) * 5,
+                        100
+                    )) * 0.30
+                ) DESC
+                LIMIT 6
+            ");
+            $toolStmt->execute($params);
+            $tools = $toolStmt->fetchAll();
+
+            foreach ($tools as &$tool) {
+                self::attachGlobalScore($tool);
+                $tool['categories'] = self::getToolCategories($pdo, (int)$tool['id']);
+                $tool['pricings']   = self::getToolPricings($pdo, (int)$tool['id']);
+                $tool['languages']  = self::getToolLanguages($pdo, (int)$tool['id']);
+                $tool['is_favorited'] = false;
+            }
+
+            echo json_encode([
+                'success'              => true,
+                'tools'                => $tools,
+                'has_profile'          => true,
+                'based_on_categories'  => count($topCategories)
+            ]);
+        } catch (\PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
 }

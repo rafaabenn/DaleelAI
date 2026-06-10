@@ -24,6 +24,8 @@ export default function ToolDetailModal({ toolId, onClose, user, isFavorited, on
             const res = await api.tools.getDetail(toolId);
             if (res.success) {
                 setTool(res.tool);
+                // Log silently for personalisation (fire-and-forget)
+                api.tools.logClick(toolId).catch(() => {});
             } else {
                 setError("Impossible de charger les détails.");
             }

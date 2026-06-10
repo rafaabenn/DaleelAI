@@ -132,11 +132,22 @@ export const api = {
             }),
 
         // Submit user review ratings
-        submitReview: (toolId, rating, comment) => 
+        submitReview: (toolId, rating, comment) =>
             request('/tools/review', {
                 method: 'POST',
                 body: JSON.stringify({ tool_id: toolId, rating, comment })
-            })
+            }),
+
+        // Log a tool view (used for personalisation)
+        logClick: (toolId) =>
+            request('/tools/click', {
+                method: 'POST',
+                body: JSON.stringify({ tool_id: toolId })
+            }),
+
+        // Fetch personalised recommendations for the logged-in user
+        getRecommended: () =>
+            request('/tools/recommended', { method: 'GET' })
     },
 
     // -----------------------------------------------------------------
