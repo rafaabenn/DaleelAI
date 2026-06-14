@@ -1,0 +1,8 @@
+# API keys and secrets — never commit these
+back-end/config/ai.php
+
+# Dependencies
+front-end/node_modules/
+
+# Build output
+front-end/dist/

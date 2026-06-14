@@ -14,7 +14,7 @@ class AdminController {
         try {
             // KPIs
             $totalTools = (int)$pdo->query("SELECT COUNT(*) FROM ai_tools WHERE status = 'approved'")->fetchColumn();
-            $pendingSubmissions = (int)$pdo->query("SELECT COUNT(*) FROM ai_tools WHERE status IN ('pending', 'processing')")->fetchColumn();
+            $pendingSubmissions = (int)$pdo->query("SELECT COUNT(*) FROM tool_submissions WHERE status IN ('pending', 'processing')")->fetchColumn();
             $totalReviews = (int)$pdo->query("SELECT COUNT(*) FROM reviews WHERE status = 'approved'")->fetchColumn();
             $totalUsers = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role_id = 2")->fetchColumn();
 
@@ -66,55 +66,51 @@ class AdminController {
     }
 
     /**
-     * Retrieves all pending tool submissions.
+     * Retrieves all pending tool submissions from tool_submissions table.
      */
     public static function getSubmissions() {
         $pdo = DB::connect();
 
         try {
             $stmt = $pdo->prepare("
-                SELECT t.*, u.username as submitted_by_username, u.email as submitted_by_email 
-                FROM ai_tools t 
-                LEFT JOIN users u ON t.submitted_by = u.id 
-                WHERE t.status IN ('pending', 'processing') 
-                ORDER BY t.created_at ASC
+                SELECT s.*, u.username AS submitted_by_username, u.email AS submitted_by_email
+                FROM tool_submissions s
+                LEFT JOIN users u ON s.user_id = u.id
+                WHERE s.status IN ('pending', 'processing')
+                ORDER BY s.submitted_at ASC
             ");
             $stmt->execute();
             $submissions = $stmt->fetchAll();
 
             foreach ($submissions as &$sub) {
-                // Fetch proposed categories
-                $cat_stmt = $pdo->prepare("
-                    SELECT c.name FROM categories c 
-                    JOIN tool_categories tc ON c.id = tc.category_id 
-                    WHERE tc.tool_id = ?
-                ");
-                $cat_stmt->execute([$sub['id']]);
-                $sub['categories'] = $cat_stmt->fetchAll();
+                // Decode JSON arrays and map to names
+                $catIds  = json_decode($sub['categories_ids'] ?? '[]', true) ?: [];
+                $prcIds  = json_decode($sub['pricings_ids']   ?? '[]', true) ?: [];
+                $langIds = json_decode($sub['languages_ids']  ?? '[]', true) ?: [];
 
-                // Fetch pricing models
-                $price_stmt = $pdo->prepare("
-                    SELECT p.name FROM pricing_models p 
-                    JOIN tool_pricing tp ON p.id = tp.pricing_id 
-                    WHERE tp.tool_id = ?
-                ");
-                $price_stmt->execute([$sub['id']]);
-                $sub['pricings'] = $price_stmt->fetchAll();
+                $sub['categories'] = [];
+                if ($catIds) {
+                    $in = implode(',', array_map('intval', $catIds));
+                    $sub['categories'] = $pdo->query("SELECT id, name FROM categories WHERE id IN ($in)")->fetchAll();
+                }
+                $sub['pricings'] = [];
+                if ($prcIds) {
+                    $in = implode(',', array_map('intval', $prcIds));
+                    $sub['pricings'] = $pdo->query("SELECT id, name FROM pricing_models WHERE id IN ($in)")->fetchAll();
+                }
+                $sub['languages'] = [];
+                if ($langIds) {
+                    $in = implode(',', array_map('intval', $langIds));
+                    $sub['languages'] = $pdo->query("SELECT id, name FROM languages WHERE id IN ($in)")->fetchAll();
+                }
 
-            // Fetch languages if the user submitted them
-            $lang_stmt = $pdo->prepare("
-                    SELECT l.name FROM languages l 
-                    JOIN tool_languages tl ON l.id = tl.language_id 
-                    WHERE tl.tool_id = ?
-                ");
-            $lang_stmt->execute([$sub['id']]);
-            $sub['languages'] = $lang_stmt->fetchAll();
+                // Aliases for frontend compatibility
+                $sub['submitted_by'] = $sub['user_id'];
+                $sub['created_at']   = $sub['submitted_at'];
             }
+            unset($sub);
 
-            echo json_encode([
-                'success' => true,
-                'submissions' => $submissions
-            ]);
+            echo json_encode(['success' => true, 'submissions' => $submissions]);
         } catch (\PDOException $e) {
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Erreur lors de la récupération des soumissions : ' . $e->getMessage()]);
@@ -122,11 +118,13 @@ class AdminController {
     }
 
     /**
-     * Validates (Approves) or Rejects a user submitted AI tool.
+     * Validates (Approves or Rejects) a submission from tool_submissions.
+     * On approve: copies data into ai_tools + junction tables.
+     * On reject/request_changes: updates tool_submissions status only.
      */
     public static function validateSubmission($data, $admin_id) {
         $tool_id = isset($data['tool_id']) ? (int)$data['tool_id'] : 0;
-        $action = isset($data['action']) ? trim($data['action']) : ''; // 'approve' or 'reject'
+        $action  = isset($data['action'])  ? trim($data['action'])  : '';
         $comment = isset($data['comment']) ? trim($data['comment']) : '';
 
         if ($tool_id <= 0 || !in_array($action, ['approve', 'reject', 'request_changes'])) {
@@ -138,93 +136,92 @@ class AdminController {
         $pdo = DB::connect();
 
         try {
-            // Check if tool actually exists and is pending
-            $stmt = $pdo->prepare("SELECT id, name, submitted_by, short_description, long_description, website_url FROM ai_tools WHERE id = ? AND status IN ('pending', 'processing')");
+            $stmt = $pdo->prepare("SELECT * FROM tool_submissions WHERE id = ? AND status IN ('pending', 'processing')");
             $stmt->execute([$tool_id]);
-            $tool = $stmt->fetch();
+            $sub = $stmt->fetch();
 
-            if (!$tool) {
+            if (!$sub) {
                 http_response_code(404);
-                echo json_encode(['success' => false, 'message' => 'Soumission d\'outil introuvable ou déjà traitée.']);
+                echo json_encode(['success' => false, 'message' => "Soumission introuvable ou déjà traitée."]);
                 return;
-            }
-
-            if ($action === 'approve') {
-                require_once __DIR__ . '/ToolController.php';
-                $validation = ToolController::runAutoValidation(
-                    $tool['name'],
-                    $tool['website_url'],
-                    $tool['short_description'],
-                    $tool['long_description']
-                );
-
-                if (!$validation['passed']) {
-                    http_response_code(400);
-                    echo json_encode([
-                        'success' => false,
-                        'message' => 'La vérification automatique a échoué : ' . $validation['error']
-                    ]);
-                    return;
-                }
-            }
-
-            if ($action === 'approve') {
-                $newStatus = 'approved';
-                $logAction = 'approve';
-            } elseif ($action === 'request_changes') {
-                $newStatus = 'processing';
-                $logAction = 'flag';
-            } else {
-                $newStatus = 'rejected';
-                $logAction = 'reject';
             }
 
             $pdo->beginTransaction();
 
-            // 1. Update status
-            $upd_stmt = $pdo->prepare("UPDATE ai_tools SET status = ? WHERE id = ?");
-            $upd_stmt->execute([$newStatus, $tool_id]);
+            if ($action === 'approve') {
+                // Generate unique slug
+                $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $sub['name'])));
+                $existing = (int)$pdo->query("SELECT COUNT(*) FROM ai_tools WHERE slug LIKE " . $pdo->quote($slug . '%'))->fetchColumn();
+                if ($existing > 0) { $slug .= '-' . ($existing + 1); }
 
-            // 2. Log in moderation_logs
-            $log_stmt = $pdo->prepare("
-                INSERT INTO moderation_logs (admin_id, target_type, target_id, action, comment) 
-                VALUES (?, 'tool', ?, ?, ?)
-            ");
-            $log_stmt->execute([$admin_id, $tool_id, $logAction, $comment]);
+                // Copy into ai_tools
+                $ins = $pdo->prepare("
+                    INSERT INTO ai_tools
+                        (name, slug, short_description, long_description, website_url, trial_url,
+                         logo_url, gdpr_compliant, has_api, has_mobile_app, status, submitted_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?)
+                ");
+                $ins->execute([
+                    $sub['name'], $slug, $sub['short_description'], $sub['long_description'],
+                    $sub['website_url'],
+                    $sub['trial_url'] ?: $sub['website_url'],
+                    $sub['logo_url'] ?: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=250',
+                    $sub['gdpr_compliant'], $sub['has_api'], $sub['has_mobile_app'],
+                    $sub['user_id']
+                ]);
+                $new_tool_id = (int)$pdo->lastInsertId();
 
-            // 3. Notify submitter if available
-            if (!empty($tool['submitted_by'])) {
-                if ($action === 'approve') {
-                    $notificationMessage = "Votre soumission '{$tool['name']}' a été approuvée et est maintenant publiée.";
-                } elseif ($action === 'reject') {
-                    $notificationMessage = "Votre soumission '{$tool['name']}' a été rejetée. Commentaire : " . ($comment ?: 'Pas de commentaire ajouté.');
-                } else {
-                    $notificationMessage = "Votre soumission '{$tool['name']}' nécessite des modifications. Commentaire : " . ($comment ?: 'Merci de corriger les informations et de renvoyer la soumission.');
-                }
+                // Insert junction table rows
+                $catIds  = json_decode($sub['categories_ids'] ?? '[]', true) ?: [];
+                $prcIds  = json_decode($sub['pricings_ids']   ?? '[]', true) ?: [];
+                $langIds = json_decode($sub['languages_ids']  ?? '[]', true) ?: [];
+                $catStmt  = $pdo->prepare("INSERT IGNORE INTO tool_categories (tool_id, category_id) VALUES (?, ?)");
+                $prcStmt  = $pdo->prepare("INSERT IGNORE INTO tool_pricing (tool_id, pricing_id) VALUES (?, ?)");
+                $langStmt = $pdo->prepare("INSERT IGNORE INTO tool_languages (tool_id, language_id) VALUES (?, ?)");
+                foreach ($catIds  as $id) { $catStmt->execute([$new_tool_id, (int)$id]); }
+                foreach ($prcIds  as $id) { $prcStmt->execute([$new_tool_id, (int)$id]); }
+                foreach ($langIds as $id) { $langStmt->execute([$new_tool_id, (int)$id]); }
 
-                $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, ?, 'submission_status', ?)");
-                $notifStmt->execute([$tool['submitted_by'], $tool_id, $notificationMessage]);
+                // Mark submission approved
+                $pdo->prepare("UPDATE tool_submissions SET status = 'approved', admin_comment = ?, updated_at = NOW() WHERE id = ?")
+                    ->execute([$comment ?: null, $tool_id]);
+
+                try {
+                    $pdo->prepare("INSERT INTO moderation_logs (admin_id, target_type, target_id, action, comment) VALUES (?, 'tool', ?, 'approve', ?)")
+                        ->execute([$admin_id, $new_tool_id, $comment]);
+                    $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, ?, 'submission_status', ?)")
+                        ->execute([$sub['user_id'], $new_tool_id, "Votre soumission '{$sub['name']}' a été approuvée et est maintenant publiée !"]);
+                } catch (\PDOException $ignored) {}
+
+                $pdo->commit();
+                echo json_encode(['success' => true, 'message' => "L'outil '{$sub['name']}' a été validé et publié.", 'tool_id' => $new_tool_id]);
+
+            } else {
+                $newStatus = $action === 'request_changes' ? 'processing' : 'rejected';
+                $logAction = $action === 'request_changes' ? 'flag' : 'reject';
+
+                $pdo->prepare("UPDATE tool_submissions SET status = ?, admin_comment = ?, updated_at = NOW() WHERE id = ?")
+                    ->execute([$newStatus, $comment ?: null, $tool_id]);
+
+                try {
+                    $pdo->prepare("INSERT INTO moderation_logs (admin_id, target_type, target_id, action, comment) VALUES (?, 'tool_submission', ?, ?, ?)")
+                        ->execute([$admin_id, $tool_id, $logAction, $comment]);
+                    $notifMsg = $action === 'request_changes'
+                        ? "Votre soumission '{$sub['name']}' nécessite des corrections. " . ($comment ?: '')
+                        : "Votre soumission '{$sub['name']}' a été rejetée. " . ($comment ?: '');
+                    $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, 0, 'submission_status', ?)")
+                        ->execute([$sub['user_id'], $notifMsg]);
+                } catch (\PDOException $ignored) {}
+
+                $pdo->commit();
+                $msg = $action === 'request_changes'
+                    ? "Demande de corrections envoyée pour '{$sub['name']}'."
+                    : "La soumission '{$sub['name']}' a été rejetée.";
+                echo json_encode(['success' => true, 'message' => $msg]);
             }
-
-            $pdo->commit();
-
-            $msg = ($action === 'approve') 
-                ? "L'outil '{$tool['name']}' a été validé et est désormais visible par tous les utilisateurs !" 
-                : "La soumission de l'outil '{$tool['name']}' a été rejetée avec succès.";
-
-            if ($action === 'request_changes') {
-                $msg = "Une demande de correction a ete envoyee pour l'outil '{$tool['name']}'.";
-            }
-
-            echo json_encode([
-                'success' => true,
-                'message' => $msg
-            ]);
 
         } catch (\PDOException $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
+            if ($pdo->inTransaction()) { $pdo->rollBack(); }
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Erreur serveur lors de la validation : ' . $e->getMessage()]);
         }

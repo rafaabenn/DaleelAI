@@ -13,15 +13,19 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
         trial_url: '',
         logo_url: '',
         short_description: '',
-        full_description: '',
+        long_description: '',
         category_id: '1',
-        pricing_model_id: '1',
-        language_id: '',
+        pricings: ['1'],
+        languages: [],
         gdpr_compliant: 0,
         has_api: 0,
         has_mobile_app: 0
     });
     const [submitting, setSubmitting] = useState(false);
+    const [aiValidating, setAiValidating] = useState(false);
+    const [aiValidationResult, setAiValidationResult] = useState(null);
+    const [aiAttempts, setAiAttempts] = useState(0);
+    const [aiBlocked, setAiBlocked] = useState(false);
     const [submitSuccess, setSubmitSuccess] = useState('');
     const [submitError, setSubmitError] = useState('');
     const [submitValidation, setSubmitValidation] = useState(null);
@@ -103,15 +107,18 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
             trial_url: '',
             logo_url: '',
             short_description: '',
-            full_description: '',
+            long_description: '',
             category_id: '1',
-            pricing_model_id: '1',
-            language_id: '',
+            pricings: ['1'],
+            languages: [],
             gdpr_compliant: 0,
             has_api: 0,
             has_mobile_app: 0
         });
         setEditingSubmissionId(null);
+        setAiValidationResult(null);
+        setAiAttempts(0);
+        setAiBlocked(false);
     };
 
     const handleEditSubmission = (submission) => {
@@ -121,10 +128,10 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
             trial_url: submission.trial_url || '',
             logo_url: submission.logo_url || '',
             short_description: submission.short_description || '',
-            full_description: submission.long_description || '',
+            long_description: submission.long_description || '',
             category_id: String(submission.category_ids?.[0] || '1'),
-            pricing_model_id: String(submission.pricing_ids?.[0] || '1'),
-            language_id: submission.language_ids?.[0] ? String(submission.language_ids[0]) : '',
+            pricings: (submission.pricing_ids || []).map(String),
+            languages: (submission.language_ids || []).map(String),
             gdpr_compliant: Number(submission.gdpr_compliant) ? 1 : 0,
             has_api: Number(submission.has_api) ? 1 : 0,
             has_mobile_app: Number(submission.has_mobile_app) ? 1 : 0
@@ -133,40 +140,101 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
         setSubmitSuccess('');
         setSubmitError('');
         setSubmitValidation(null);
+        setAiValidationResult(null);
+        setAiAttempts(0);
+        setAiBlocked(false);
         setShowSubmitForm(true);
     };
 
-    const handleSubmitTool = async (e) => {
-        e.preventDefault();
+    const buildPayload = () => ({
+        ...submitData,
+        tool_id: editingSubmissionId,
+        long_description: submitData.long_description,
+        categories: [submitData.category_id],
+        pricings: submitData.pricings,
+        languages: submitData.languages
+    });
+
+    const applyImprovedValues = (improved) => {
+        if (!improved) return;
+        setSubmitData(p => ({
+            ...p,
+            short_description: improved.short_description || p.short_description,
+            long_description: improved.long_description || p.long_description
+        }));
+    };
+
+    const doActualSubmit = async (aiSummary) => {
         setSubmitting(true);
-        setSubmitSuccess('');
-        setSubmitError('');
         try {
-            const payload = {
-                ...submitData,
-                tool_id: editingSubmissionId,
-                categories: [submitData.category_id],
-                pricings: [submitData.pricing_model_id],
-                languages: submitData.language_id ? [submitData.language_id] : []
-            };
+            const payload = { ...buildPayload(), ai_summary: aiSummary || '' };
             const res = editingSubmissionId
                 ? await api.tools.resubmit(payload)
                 : await api.tools.submit(payload);
             if (res.success) {
-                setSubmitSuccess(res.message || "Votre demande de soumission a été envoyée avec succès !");
-                setSubmitValidation(res.validation || null);
+                setSubmitSuccess(res.message || "Votre soumission a été envoyée avec succès !");
                 resetSubmitForm();
                 setShowSubmitForm(false);
+                loadNotifications();
+                loadUserSubmissions();
             } else {
-                setSubmitError(res.message || "Erreur lors de la soumission de l'outil.");
+                setSubmitError(res.message || "Erreur lors de la soumission.");
             }
         } catch (err) {
             setSubmitError(err.message || "Erreur de connexion.");
         } finally {
             setSubmitting(false);
-            loadNotifications();
-            loadUserSubmissions();
         }
+    };
+
+    const handleSubmitTool = async (e) => {
+        e.preventDefault();
+        setSubmitSuccess('');
+        setSubmitError('');
+        setAiValidationResult(null);
+
+        if (!submitData.pricings.length) {
+            setSubmitError('Veuillez sélectionner au moins un modèle de prix.');
+            return;
+        }
+
+        if (aiBlocked) {
+            setSubmitError('Vous avez atteint la limite de 3 tentatives. Veuillez corriger les champs signalés.');
+            return;
+        }
+
+        setAiValidating(true);
+        try {
+            const res = await api.tools.aiValidate(buildPayload());
+            if (res.valid) {
+                setAiValidationResult({ valid: true, summary: res.summary });
+                await doActualSubmit(res.summary);
+            } else {
+                // Use server-side attempt counter as the source of truth
+                const serverAttempt = res.attempt ?? (aiAttempts + 1);
+                setAiAttempts(serverAttempt);
+                setAiValidationResult({ valid: false, status: res.status, summary: res.summary, corrections: res.corrections || [], improved_values: res.improved_values });
+                if (serverAttempt >= 3) {
+                    setAiBlocked(true);
+                    setSubmitError("Limite de 3 tentatives atteinte. Corrigez les champs signalés avant de renvoyer.");
+                }
+            }
+        } catch (err) {
+            // Server provides clear French messages for 429 (rate limit) and 503 (unavailable)
+            setSubmitError(err.message || "La validation IA est temporairement indisponible. Réessayez dans quelques instants.");
+        } finally {
+            setAiValidating(false);
+        }
+    };
+
+    const toggleSubmitArrayValue = (field, value) => {
+        setSubmitData(prev => {
+            const current = prev[field] || [];
+            const next = current.includes(value)
+                ? current.filter(item => item !== value)
+                : [...current, value];
+            return { ...prev, [field]: next };
+        });
     };
 
     const handleRemoveFav = async (toolId) => {
@@ -373,34 +441,55 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                             </div>
                         )}
 
-                        {/* Validation breakdown preview (if present) */}
-                        {submitValidation && (
+                        {/* AI Validation result panel */}
+                        {aiValidationResult && !aiValidationResult.valid && (
                             <div style={{
-                                marginTop: '12px',
-                                padding: '12px',
-                                borderRadius: '10px',
-                                background: 'rgba(99,102,241,0.06)',
-                                border: '1px solid rgba(99,102,241,0.12)',
-                                color: '#e0e7ff'
+                                marginBottom: '20px',
+                                padding: '16px',
+                                borderRadius: '12px',
+                                background: 'rgba(245, 158, 11, 0.07)',
+                                border: '1px solid rgba(245, 158, 11, 0.28)',
+                                color: '#fde68a'
                             }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ fontWeight: 700 }}>Résultat de la validation automatique</div>
-                                    <div style={{ fontSize: '0.85rem', color: '#c7d2fe' }}>
-                                        Score: {submitValidation.score ?? '—'} • {submitValidation.auto_approve ? 'Auto-approuvé' : 'En attente'}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <ShieldAlert size={16} color="#f59e0b" />
+                                        Validation IA — Corrections requises
                                     </div>
+                                    <span style={{ fontSize: '0.75rem', color: '#fbbf24', background: 'rgba(245,158,11,0.15)', borderRadius: '999px', padding: '3px 10px' }}>
+                                        Tentative {aiAttempts}/3
+                                    </span>
                                 </div>
-                                <div style={{ marginTop: '8px', fontSize: '0.85rem', color: '#cbd5e1' }}>
-                                    <ul style={{ margin: 0, paddingLeft: '18px' }}>
-                                        {submitValidation.breakdown && Object.keys(submitValidation.breakdown).map(key => (
-                                            <li key={key} style={{ marginBottom: '4px' }}>
-                                                <strong style={{ color: '#e2e8f0' }}>{key.replace(/_/g, ' ')}:</strong> {submitValidation.breakdown[key]}
+                                {aiValidationResult.summary && (
+                                    <p style={{ margin: '0 0 10px', fontSize: '0.85rem', color: '#fde68a' }}>{aiValidationResult.summary}</p>
+                                )}
+                                {aiValidationResult.corrections?.length > 0 && (
+                                    <ul style={{ margin: '0 0 12px', paddingLeft: '18px', fontSize: '0.83rem', color: '#fcd34d' }}>
+                                        {aiValidationResult.corrections.map((c, i) => (
+                                            <li key={i} style={{ marginBottom: '6px' }}>
+                                                <strong style={{ color: '#fde68a' }}>{c.field} :</strong> {c.reason}
+                                                {c.suggestion && <span style={{ color: '#d1fae5' }}> → {c.suggestion}</span>}
                                             </li>
                                         ))}
                                     </ul>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                                    <button type="button" className="btn-secondary" onClick={() => setSubmitValidation(null)}>Fermer</button>
-                                </div>
+                                )}
+                                {aiValidationResult.improved_values && (
+                                    <button
+                                        type="button"
+                                        onClick={() => applyImprovedValues(aiValidationResult.improved_values)}
+                                        style={{
+                                            fontSize: '0.8rem',
+                                            padding: '7px 14px',
+                                            borderRadius: '8px',
+                                            border: '1px solid rgba(16,185,129,0.4)',
+                                            background: 'rgba(16,185,129,0.1)',
+                                            color: '#6ee7b7',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Appliquer les suggestions de l'IA
+                                    </button>
+                                )}
                             </div>
                         )}
 
@@ -499,6 +588,76 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                                 </select>
                             </div>
 
+                            {/* Pricing */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', gridColumn: '1 / -1' }}>
+                                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Tag size={12} /> Modèle de prix *
+                                </label>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                    {filterOptions.pricing_models.map(price => {
+                                        const value = String(price.id);
+                                        const checked = submitData.pricings.includes(value);
+                                        return (
+                                            <label key={price.id} style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                padding: '9px 12px',
+                                                borderRadius: '10px',
+                                                border: checked ? '1px solid rgba(168,85,247,0.55)' : '1px solid rgba(255,255,255,0.10)',
+                                                background: checked ? 'rgba(168,85,247,0.16)' : 'rgba(255,255,255,0.03)',
+                                                color: checked ? '#f3e8ff' : '#cbd5e1',
+                                                fontSize: '0.84rem',
+                                                cursor: 'pointer'
+                                            }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={() => toggleSubmitArrayValue('pricings', value)}
+                                                    style={{ accentColor: '#a855f7' }}
+                                                />
+                                                {price.name}
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Languages */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', gridColumn: '1 / -1' }}>
+                                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Globe size={12} /> Langues disponibles
+                                </label>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                    {filterOptions.languages.map(lang => {
+                                        const value = String(lang.id);
+                                        const checked = submitData.languages.includes(value);
+                                        return (
+                                            <label key={lang.id} style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                padding: '9px 12px',
+                                                borderRadius: '10px',
+                                                border: checked ? '1px solid rgba(59,130,246,0.55)' : '1px solid rgba(255,255,255,0.10)',
+                                                background: checked ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.03)',
+                                                color: checked ? '#dbeafe' : '#cbd5e1',
+                                                fontSize: '0.84rem',
+                                                cursor: 'pointer'
+                                            }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={() => toggleSubmitArrayValue('languages', value)}
+                                                    style={{ accentColor: '#3b82f6' }}
+                                                />
+                                                {lang.name}
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
                             {/* API / Mobile / GDPR */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', gridColumn: '1 / -1' }}>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px' }}>
@@ -527,7 +686,7 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                                         Conforme RGPD
                                     </label>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div style={{ display: 'none' }}>
                                     <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <Globe size={12} /> Langue principale
                                     </label>
@@ -571,8 +730,8 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                                 </label>
                                 <textarea
                                     rows="4"
-                                    value={submitData.full_description}
-                                    onChange={(e) => setSubmitData(p => ({ ...p, full_description: e.target.value }))}
+                                    value={submitData.long_description}
+                                    onChange={(e) => setSubmitData(p => ({ ...p, long_description: e.target.value }))}
                                     className="input-field"
                                     placeholder="Décrivez en détail les fonctionnalités, cas d'usage académiques, points forts de l'outil..."
                                     style={{ resize: 'vertical', fontSize: '0.88rem' }}
@@ -595,7 +754,7 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                             }}>
                                 <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
                                 <span>
-                                    Votre soumission sera vérifiée automatiquement. Si le site correspond au nom de l'outil, il sera publié instantanément ! Dans les autres cas (ou en cas de doute), un administrateur validera manuellement votre demande. Les doublons seront automatiquement détectés et rejetés.
+                                    Votre soumission est d'abord analysée par notre IA (Gemini). Si tout est correct, elle est transmise à un administrateur pour publication. En cas d'erreur, l'IA vous indique les corrections à apporter — vous disposez de 3 tentatives.
                                 </span>
                             </div>
 
@@ -604,11 +763,11 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                                 <button type="button" className="btn-secondary" onClick={() => { resetSubmitForm(); setShowSubmitForm(false); }}>
                                     Annuler
                                 </button>
-                                <button type="submit" className="btn-success" disabled={submitting}>
-                                    {submitting ? 'Envoi en cours...' : (
+                                <button type="submit" className="btn-success" disabled={submitting || aiValidating || aiBlocked}>
+                                    {aiValidating ? 'Validation IA...' : submitting ? 'Envoi en cours...' : (
                                         <>
                                             <PlusCircle size={16} />
-                                            {editingSubmissionId ? 'Envoyer la Correction' : 'Envoyer la Demande'}
+                                            {editingSubmissionId ? 'Envoyer la Correction' : 'Soumettre'}
                                         </>
                                     )}
                                 </button>

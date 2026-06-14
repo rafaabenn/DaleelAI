@@ -29,7 +29,31 @@ async function request(endpoint, options = {}) {
 
     try {
         const response = await fetch(url, config);
-        const data = await response.json();
+        const contentType = response.headers.get('content-type') || '';
+        const rawBody = await response.text();
+        let data = {};
+
+        if (rawBody) {
+            if (contentType.includes('application/json')) {
+                try {
+                    data = JSON.parse(rawBody);
+                } catch {
+                    const cleaned = rawBody
+                        .replace(/<br\s*\/?>/gi, '\n')
+                        .replace(/<[^>]*>/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    throw new Error(cleaned || `Réponse JSON invalide (${response.status})`);
+                }
+            } else {
+                const cleaned = rawBody
+                    .replace(/<br\s*\/?>/gi, '\n')
+                    .replace(/<[^>]*>/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                throw new Error(cleaned || `Réponse serveur invalide (${response.status})`);
+            }
+        }
 
         if (!response.ok) {
             // Handle automatic token expiration or session cancellation
@@ -93,8 +117,15 @@ export const api = {
         getDetail: (id) => 
             request(`/tools/detail?id=${id}`, { method: 'GET' }),
 
+        // Validate tool data via Gemini AI before actual submission
+        aiValidate: (toolData) =>
+            request('/tools/ai-validation', {
+                method: 'POST',
+                body: JSON.stringify(toolData)
+            }),
+
         // Submit new AI tool (checks duplicate before pending insertion)
-        submit: (toolData) => 
+        submit: (toolData) =>
             request('/tools/submit', {
                 method: 'POST',
                 body: JSON.stringify(toolData)

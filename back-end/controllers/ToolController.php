@@ -183,121 +183,266 @@ class ToolController {
         }
     }
 
-    public static function submitTool($data, $user_id) {
-        $name = isset($data['name']) ? trim($data['name']) : '';
-        $short_desc = isset($data['short_description']) ? trim($data['short_description']) : '';
-        $long_desc = isset($data['long_description']) ? trim($data['long_description']) : (isset($data['full_description']) ? trim($data['full_description']) : '');
-        $website_url = isset($data['website_url']) ? trim($data['website_url']) : '';
-        $trial_url = isset($data['trial_url']) ? trim($data['trial_url']) : '';
-        $logo_url = isset($data['logo_url']) ? trim($data['logo_url']) : '';
-        $gdpr = isset($data['gdpr_compliant']) && $data['gdpr_compliant'] ? 1 : 0;
-        $api = isset($data['has_api']) && $data['has_api'] ? 1 : 0;
-        $mobile = isset($data['has_mobile_app']) && $data['has_mobile_app'] ? 1 : 0;
-        $categories = isset($data['categories']) ? $data['categories'] : (isset($data['category_id']) ? [$data['category_id']] : []);
-        $pricings = isset($data['pricings']) ? $data['pricings'] : (isset($data['pricing_model_id']) ? [$data['pricing_model_id']] : []);
-        $languages = isset($data['languages']) ? $data['languages'] : [];
+    // ─── AI Validation (Gemini) with server-side rate limiting ──────────
+    public static function aiValidate($data, $user_id) {
+        require_once __DIR__ . '/../config/ai.php';
+
+        if (!defined('GROQ_API_KEY') || GROQ_API_KEY === 'YOUR_GROQ_API_KEY_HERE') {
+            http_response_code(503);
+            echo json_encode(['success' => false, 'message' => 'Service de validation IA non configuré (clé manquante).']);
+            return;
+        }
 
         $pdo = DB::connect();
-        self::ensureSubmissionAttemptsTable($pdo);
-        $attemptKey = self::buildAttemptKey($user_id, $website_url, $name);
+
+        // Server-side rate limiting: max 3 failed attempts, then 1-hour block
+        $rl_stmt = $pdo->prepare("SELECT attempt_count, blocked_until FROM ai_validation_rate_limits WHERE user_id = ?");
+        $rl_stmt->execute([$user_id]);
+        $rl = $rl_stmt->fetch();
+        $currentAttempts = 0;
+
+        if ($rl) {
+            if ($rl['blocked_until'] !== null) {
+                $blockedUntil = new \DateTime($rl['blocked_until']);
+                $now = new \DateTime();
+                if ($now < $blockedUntil) {
+                    $diff = $now->diff($blockedUntil);
+                    $minutesLeft = max(1, ($diff->h * 60) + $diff->i + ($diff->s > 0 ? 1 : 0));
+                    http_response_code(429);
+                    echo json_encode([
+                        'success'       => false,
+                        'message'       => "Vous avez atteint la limite de tentatives. Veuillez réessayer dans environ {$minutesLeft} minute(s).",
+                        'blocked_until' => $rl['blocked_until']
+                    ]);
+                    return;
+                }
+                // Block expired — reset counter
+                $pdo->prepare("UPDATE ai_validation_rate_limits SET attempt_count = 0, blocked_until = NULL WHERE user_id = ?")
+                    ->execute([$user_id]);
+                $currentAttempts = 0;
+            } else {
+                $currentAttempts = (int)$rl['attempt_count'];
+            }
+        }
+
+        $name       = trim($data['name'] ?? '');
+        $website    = trim($data['website_url'] ?? '');
+        $trial      = trim($data['trial_url'] ?? '');
+        $logo       = trim($data['logo_url'] ?? '');
+        $short_desc = trim($data['short_description'] ?? '');
+        $long_desc  = trim($data['long_description'] ?? $data['full_description'] ?? '');
+        $gdpr_lbl   = !empty($data['gdpr_compliant']) ? 'Oui' : 'Non';
+        $api_lbl    = !empty($data['has_api'])         ? 'Oui' : 'Non';
+        $mobile_lbl = !empty($data['has_mobile_app'])  ? 'Oui' : 'Non';
+
+        $catIds = $data['categories'] ?? [];
+        $prcIds = $data['pricings']   ?? [];
+        $lngIds = $data['languages']  ?? [];
+
+        $fetchNames = function($ids, $table, $col) use ($pdo) {
+            if (empty($ids)) return [];
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            $s  = $pdo->prepare("SELECT $col FROM $table WHERE id IN ($ph)");
+            $s->execute(array_map('intval', $ids));
+            return array_column($s->fetchAll(), $col);
+        };
+
+        $catNames = $fetchNames($catIds, 'categories',     'name');
+        $prcNames = $fetchNames($prcIds, 'pricing_models', 'name');
+        $lngNames = $fetchNames($lngIds, 'languages',      'name');
+
+        $prompt = "Tu es un validateur expert pour DaleelAI, une plateforme académique de référencement d'outils IA.\n\n"
+            . "Analyse cette soumission d'outil IA.\n\n"
+            . "Données :\n"
+            . "Nom : {$name}\n"
+            . "URL officielle : {$website}\n"
+            . "URL essai : {$trial}\n"
+            . "Logo : {$logo}\n"
+            . "Description courte : {$short_desc}\n"
+            . "Description complète : {$long_desc}\n"
+            . "Catégories : " . implode(', ', $catNames) . "\n"
+            . "Prix : " . implode(', ', $prcNames) . "\n"
+            . "Langues : " . implode(', ', $lngNames) . "\n"
+            . "RGPD : {$gdpr_lbl}\n"
+            . "API : {$api_lbl}\n"
+            . "Application mobile : {$mobile_lbl}\n\n"
+            . "Ta mission :\n"
+            . "1. Vérifie si l'outil semble réel et cohérent.\n"
+            . "2. Vérifie si le nom correspond au domaine officiel.\n"
+            . "3. Vérifie si la description courte est claire, professionnelle et entre 20 et 250 caractères.\n"
+            . "4. Vérifie si la description complète est utile, précise et contient au moins 80 caractères.\n"
+            . "5. Vérifie si les catégories, prix et langues semblent cohérents.\n"
+            . "6. Détecte les textes de test, placeholders, informations vagues ou incohérentes.\n"
+            . "7. Si quelque chose doit être corrigé, explique clairement quoi modifier à l'utilisateur.\n\n"
+            . "Réponds uniquement en JSON valide avec cette structure exacte :\n\n"
+            . '{"valid":true,"status":"accepted_for_admin_review","summary":"...","corrections":[],"improved_values":{"short_description":"...","long_description":"..."}}' . "\n\n"
+            . "ou si invalide :\n\n"
+            . '{"valid":false,"status":"needs_correction","summary":"...","corrections":[{"field":"nom_champ","reason":"...","suggestion":"..."}],"improved_values":{"short_description":"...","long_description":"..."}}';
+
+        $apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+
+        $body = json_encode([
+            'model'           => GROQ_MODEL,
+            'messages'        => [
+                ['role' => 'system', 'content' => 'Tu es un validateur expert pour DaleelAI. Réponds uniquement en JSON valide, sans markdown ni texte autour.'],
+                ['role' => 'user',   'content' => $prompt]
+            ],
+            'response_format' => ['type' => 'json_object'],
+            'temperature'     => 0.2
+        ]);
+
+        $ch = curl_init($apiUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . GROQ_API_KEY
+            ],
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => false, // certificats CA manquants sur Windows/WAMP en dev
+            CURLOPT_SSL_VERIFYHOST => false,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if (!$response || $httpCode !== 200) {
+            http_response_code(503);
+            echo json_encode(['success' => false, 'message' => 'Service IA temporairement indisponible (code ' . $httpCode . '). Réessayez dans quelques instants.']);
+            return;
+        }
+
+        $raw     = json_decode($response, true);
+        $jsonTxt = $raw['choices'][0]['message']['content'] ?? '';
+        $result  = json_decode($jsonTxt, true);
+
+        // Unparseable Gemini response → block submission per spec (no fallback pass-through)
+        if (!$result || !array_key_exists('valid', $result)) {
+            http_response_code(503);
+            echo json_encode(['success' => false, 'message' => 'La validation IA est temporairement indisponible. Réessayez dans quelques instants.']);
+            return;
+        }
+
+        if (!(bool)$result['valid']) {
+            $newAttempts = $currentAttempts + 1;
+            $blockedUntilVal = $newAttempts >= 3 ? (new \DateTime('+1 hour'))->format('Y-m-d H:i:s') : null;
+
+            $pdo->prepare("
+                INSERT INTO ai_validation_rate_limits (user_id, attempt_count, blocked_until)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE attempt_count = VALUES(attempt_count), blocked_until = VALUES(blocked_until)
+            ")->execute([$user_id, $newAttempts, $blockedUntilVal]);
+
+            echo json_encode([
+                'success'         => true,
+                'valid'           => false,
+                'attempt'         => $newAttempts,
+                'status'          => $result['status'] ?? 'needs_correction',
+                'summary'         => $result['summary'] ?? '',
+                'corrections'     => $result['corrections'] ?? [],
+                'improved_values' => $result['improved_values'] ?? []
+            ]);
+        } else {
+            // Reset rate limit counter on successful validation
+            $pdo->prepare("
+                INSERT INTO ai_validation_rate_limits (user_id, attempt_count, blocked_until)
+                VALUES (?, 0, NULL)
+                ON DUPLICATE KEY UPDATE attempt_count = 0, blocked_until = NULL
+            ")->execute([$user_id]);
+
+            echo json_encode([
+                'success'         => true,
+                'valid'           => true,
+                'attempt'         => $currentAttempts + 1,
+                'status'          => $result['status'] ?? 'accepted_for_admin_review',
+                'summary'         => $result['summary'] ?? '',
+                'corrections'     => [],
+                'improved_values' => $result['improved_values'] ?? []
+            ]);
+        }
+    }
+
+    // ─── Submit Tool (saves into tool_submissions, not ai_tools) ───────
+    public static function submitTool($data, $user_id) {
+        $name       = trim($data['name'] ?? '');
+        $short_desc = trim($data['short_description'] ?? '');
+        $long_desc  = trim($data['long_description'] ?? $data['full_description'] ?? '');
+        $website_url= trim($data['website_url'] ?? '');
+        $trial_url  = trim($data['trial_url'] ?? '');
+        $logo_url   = trim($data['logo_url'] ?? '');
+        $gdpr       = !empty($data['gdpr_compliant']) ? 1 : 0;
+        $api        = !empty($data['has_api'])         ? 1 : 0;
+        $mobile     = !empty($data['has_mobile_app'])  ? 1 : 0;
+        $categories = $data['categories'] ?? ($data['category_id'] ? [$data['category_id']] : []);
+        $pricings   = $data['pricings']   ?? ($data['pricing_model_id'] ? [$data['pricing_model_id']] : []);
+        $languages  = $data['languages']  ?? [];
+        $ai_summary = trim($data['ai_summary'] ?? '');
+
+        if ($name === '' || $short_desc === '' || $long_desc === '' || $website_url === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Champs obligatoires manquants (nom, descriptions, URL).']);
+            return;
+        }
+
+        $pdo = DB::connect();
 
         try {
-            $blocked = self::getActiveAttemptBlock($pdo, $attemptKey);
-            if ($blocked) {
-                http_response_code(429);
-                echo json_encode([
-                    'success' => false,
-                    'status' => 'rejected',
-                    'message' => 'Soumission rejetee definitivement pendant 1h apres 3 echecs. Vous pourrez reessayer apres ' . $blocked['rejected_until'] . '.',
-                    'attempts' => (int)$blocked['attempts_count'],
-                    'rejected_until' => $blocked['rejected_until']
-                ]);
-                return;
-            }
-
-            if ($name === '' || $short_desc === '' || $long_desc === '' || $website_url === '') {
-                self::failSubmissionAttempt($pdo, $attemptKey, $user_id, $website_url, $name, 'Veuillez remplir les champs obligatoires : nom, descriptions et URL du site.');
-                return;
-            }
-
+            // Block duplicates in published catalogue
             $dup = $pdo->prepare("SELECT id FROM ai_tools WHERE LOWER(name) = LOWER(?) OR website_url = ?");
             $dup->execute([$name, $website_url]);
             if ($dup->fetch()) {
-                self::failSubmissionAttempt($pdo, $attemptKey, $user_id, $website_url, $name, 'Cet outil existe deja dans la base de donnees avec le meme nom ou la meme URL.');
+                http_response_code(409);
+                echo json_encode(['success' => false, 'message' => 'Cet outil existe déjà dans le catalogue publié.']);
                 return;
             }
 
-            $validation = self::runAutoValidation($name, $website_url, $short_desc, $long_desc);
-            if (!$validation['passed']) {
-                self::failSubmissionAttempt($pdo, $attemptKey, $user_id, $website_url, $name, $validation['error']);
+            // Block duplicate pending submissions from same user
+            $dupSub = $pdo->prepare("SELECT id FROM tool_submissions WHERE user_id = ? AND (LOWER(name) = LOWER(?) OR website_url = ?) AND status IN ('pending','processing')");
+            $dupSub->execute([$user_id, $name, $website_url]);
+            if ($dupSub->fetch()) {
+                http_response_code(409);
+                echo json_encode(['success' => false, 'message' => 'Vous avez déjà une soumission en attente pour cet outil.']);
                 return;
             }
-
-            $initialStatus = $validation['auto_approve'] ? 'approved' : 'pending';
-            $slug = self::generateUniqueSlug($pdo, $name);
-
-            $pdo->beginTransaction();
 
             $ins = $pdo->prepare("
-                INSERT INTO ai_tools
-                    (name, slug, short_description, long_description,
-                     website_url, trial_url, logo_url,
-                     gdpr_compliant, has_api, has_mobile_app,
-                     status, submitted_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO tool_submissions
+                    (user_id, name, short_description, long_description, website_url,
+                     trial_url, logo_url, gdpr_compliant, has_api, has_mobile_app,
+                     categories_ids, pricings_ids, languages_ids, ai_summary)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $ins->execute([
-                $name,
-                $slug,
-                $short_desc,
-                $long_desc,
-                $website_url,
-                $trial_url !== '' ? $trial_url : $website_url,
-                $logo_url,
-                $gdpr,
-                $api,
-                $mobile,
-                $initialStatus,
-                $user_id
+                $user_id, $name, $short_desc, $long_desc, $website_url,
+                $trial_url !== '' ? $trial_url : null,
+                $logo_url  !== '' ? $logo_url  : null,
+                $gdpr, $api, $mobile,
+                json_encode(array_values(array_map('intval', array_filter($categories)))),
+                json_encode(array_values(array_map('intval', array_filter($pricings)))),
+                json_encode(array_values(array_map('intval', array_filter($languages)))),
+                $ai_summary
             ]);
 
-            $tool_id = (int)$pdo->lastInsertId();
-            self::insertToolRelations($pdo, $tool_id, 'tool_categories', 'category_id', $categories);
-            self::insertToolRelations($pdo, $tool_id, 'tool_pricing', 'pricing_id', $pricings);
-            self::insertToolRelations($pdo, $tool_id, 'tool_languages', 'language_id', $languages);
-            self::clearSubmissionAttempt($pdo, $attemptKey);
+            $submission_id = (int)$pdo->lastInsertId();
 
-            $notifMessage = $initialStatus === 'approved'
-                ? "Felicitations ! Votre outil '$name' a ete automatiquement approuve et publie."
-                : "Votre outil '$name' est bien enregistre. Il est en attente d examen par un administrateur.";
-            $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, ?, 'submission_status', ?)");
-            $notifStmt->execute([$user_id, $tool_id, $notifMessage]);
-
-            if ($initialStatus === 'pending') {
-                $adminStmt = $pdo->query("SELECT id FROM users WHERE role_id = 1");
-                $adminNotif = $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, ?, 'admin_message', ?)");
-                foreach ($adminStmt->fetchAll() as $admin) {
-                    $adminNotif->execute([$admin['id'], $tool_id, "Nouvelle soumission d outil en attente : '$name'."]);
-                }
-            }
-
-            $pdo->commit();
+            try {
+                $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, 0, 'submission_status', ?)")
+                    ->execute([$user_id, "Votre soumission '{$name}' a été envoyée et attend la validation d'un administrateur."]);
+                $admins = $pdo->query("SELECT id FROM users WHERE role_id = 1")->fetchAll();
+                $an = $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, 0, 'admin_message', ?)");
+                foreach ($admins as $a) { $an->execute([$a['id'], "Nouvelle soumission en attente : '{$name}'."]); }
+            } catch (\PDOException $ignored) {}
 
             http_response_code(201);
             echo json_encode([
-                'success' => true,
-                'message' => $initialStatus === 'approved'
-                    ? 'Outil automatiquement approuve et publie.'
-                    : 'Soumission recue. L outil est en attente de validation administrateur.',
-                'tool_id' => $tool_id,
-                'status' => $initialStatus,
-                'notification' => $notifMessage,
-                'validation' => $validation
+                'success'       => true,
+                'message'       => "Votre soumission pour '{$name}' a été envoyée à l'administrateur pour validation.",
+                'submission_id' => $submission_id,
             ]);
         } catch (\PDOException $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Erreur serveur lors de la soumission : ' . $e->getMessage()]);
         }
@@ -305,27 +450,25 @@ class ToolController {
 
     public static function getMySubmissions($user_id) {
         $pdo = DB::connect();
-
         try {
             $stmt = $pdo->prepare("
-                SELECT *
-                FROM ai_tools
-                WHERE submitted_by = ? AND status IN ('pending', 'processing', 'rejected')
-                ORDER BY updated_at DESC
+                SELECT *, submitted_at AS created_at
+                FROM tool_submissions
+                WHERE user_id = ?
+                ORDER BY submitted_at DESC
             ");
             $stmt->execute([$user_id]);
             $submissions = $stmt->fetchAll();
-
-            foreach ($submissions as &$submission) {
-                $submission['category_ids'] = self::getRelationIds($pdo, 'tool_categories', 'category_id', (int)$submission['id']);
-                $submission['pricing_ids'] = self::getRelationIds($pdo, 'tool_pricing', 'pricing_id', (int)$submission['id']);
-                $submission['language_ids'] = self::getRelationIds($pdo, 'tool_languages', 'language_id', (int)$submission['id']);
+            foreach ($submissions as &$s) {
+                $s['category_ids'] = json_decode($s['categories_ids'] ?? '[]', true) ?: [];
+                $s['pricing_ids']  = json_decode($s['pricings_ids']   ?? '[]', true) ?: [];
+                $s['language_ids'] = json_decode($s['languages_ids']  ?? '[]', true) ?: [];
             }
-
+            unset($s);
             echo json_encode(['success' => true, 'submissions' => $submissions]);
         } catch (\PDOException $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Impossible de recuperer vos soumissions : ' . $e->getMessage()]);
+            echo json_encode(['success' => false, 'message' => 'Impossible de récupérer vos soumissions : ' . $e->getMessage()]);
         }
     }
 
@@ -350,114 +493,47 @@ class ToolController {
             return;
         }
 
+        $ai_summary = isset($data['ai_summary']) ? trim($data['ai_summary']) : null;
         $pdo = DB::connect();
-        self::ensureSubmissionAttemptsTable($pdo);
-        $attemptKey = self::buildCorrectionAttemptKey($user_id, $tool_id);
 
         try {
-            $toolStmt = $pdo->prepare("SELECT id, name FROM ai_tools WHERE id = ? AND submitted_by = ? AND status = 'processing'");
-            $toolStmt->execute([$tool_id, $user_id]);
-            $existingTool = $toolStmt->fetch();
+            $stmt = $pdo->prepare("SELECT id, name FROM tool_submissions WHERE id = ? AND user_id = ? AND status IN ('processing','rejected')");
+            $stmt->execute([$tool_id, $user_id]);
+            $existing = $stmt->fetch();
 
-            if (!$existingTool) {
+            if (!$existing) {
                 http_response_code(404);
-                echo json_encode(['success' => false, 'message' => 'Aucune soumission en correction ne correspond a votre compte.']);
+                echo json_encode(['success' => false, 'message' => 'Aucune soumission modifiable trouvée pour votre compte.']);
                 return;
             }
-
-            $blocked = self::getActiveAttemptBlock($pdo, $attemptKey);
-            if ($blocked) {
-                http_response_code(429);
-                echo json_encode([
-                    'success' => false,
-                    'status' => 'rejected',
-                    'message' => 'Correction bloquee pendant 1h apres 3 echecs. Vous pourrez reessayer apres ' . $blocked['rejected_until'] . '.',
-                    'attempts' => (int)$blocked['attempts_count'],
-                    'rejected_until' => $blocked['rejected_until']
-                ]);
-                return;
-            }
-
-            if ($name === '' || $short_desc === '' || $long_desc === '' || $website_url === '') {
-                self::failSubmissionAttempt($pdo, $attemptKey, $user_id, $website_url, $name, 'Veuillez remplir les champs obligatoires : nom, descriptions et URL du site.');
-                return;
-            }
-
-            $dup = $pdo->prepare("SELECT id FROM ai_tools WHERE (LOWER(name) = LOWER(?) OR website_url = ?) AND id <> ?");
-            $dup->execute([$name, $website_url, $tool_id]);
-            if ($dup->fetch()) {
-                self::failSubmissionAttempt($pdo, $attemptKey, $user_id, $website_url, $name, 'Cet outil existe deja dans la base de donnees avec le meme nom ou la meme URL.');
-                return;
-            }
-
-            $validation = self::runAutoValidation($name, $website_url, $short_desc, $long_desc);
-            if (!$validation['passed']) {
-                self::failSubmissionAttempt($pdo, $attemptKey, $user_id, $website_url, $name, $validation['error']);
-                return;
-            }
-
-            $newStatus = $validation['auto_approve'] ? 'approved' : 'pending';
-            $slug = self::generateUniqueSlugForTool($pdo, $name, $tool_id);
-
-            $pdo->beginTransaction();
 
             $upd = $pdo->prepare("
-                UPDATE ai_tools
-                SET name = ?, slug = ?, short_description = ?, long_description = ?,
-                    website_url = ?, trial_url = ?, logo_url = ?,
-                    gdpr_compliant = ?, has_api = ?, has_mobile_app = ?, status = ?
-                WHERE id = ? AND submitted_by = ?
+                UPDATE tool_submissions
+                SET name = ?, short_description = ?, long_description = ?, website_url = ?,
+                    trial_url = ?, logo_url = ?, gdpr_compliant = ?, has_api = ?, has_mobile_app = ?,
+                    categories_ids = ?, pricings_ids = ?, languages_ids = ?,
+                    ai_summary = ?, status = 'pending', admin_comment = NULL, updated_at = NOW()
+                WHERE id = ? AND user_id = ?
             ");
             $upd->execute([
-                $name,
-                $slug,
-                $short_desc,
-                $long_desc,
-                $website_url,
-                $trial_url !== '' ? $trial_url : $website_url,
-                $logo_url,
-                $gdpr,
-                $api,
-                $mobile,
-                $newStatus,
-                $tool_id,
-                $user_id
+                $name, $short_desc, $long_desc, $website_url,
+                $trial_url !== '' ? $trial_url : null,
+                $logo_url  !== '' ? $logo_url  : null,
+                $gdpr, $api, $mobile,
+                json_encode(array_values(array_map('intval', array_filter($categories)))),
+                json_encode(array_values(array_map('intval', array_filter($pricings)))),
+                json_encode(array_values(array_map('intval', array_filter($languages)))),
+                $ai_summary,
+                $tool_id, $user_id
             ]);
 
-            self::replaceToolRelations($pdo, $tool_id, 'tool_categories', 'category_id', $categories);
-            self::replaceToolRelations($pdo, $tool_id, 'tool_pricing', 'pricing_id', $pricings);
-            self::replaceToolRelations($pdo, $tool_id, 'tool_languages', 'language_id', $languages);
-            self::clearSubmissionAttempt($pdo, $attemptKey);
+            try {
+                $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, 0, 'submission_status', ?)")
+                    ->execute([$user_id, "Votre correction pour '{$name}' a été renvoyée à l'administrateur."]);
+            } catch (\PDOException $ignored) {}
 
-            $notifMessage = $newStatus === 'approved'
-                ? "Votre correction pour '$name' a ete validee automatiquement et l outil est publie."
-                : "Votre correction pour '$name' a ete envoyee a l administrateur.";
-            $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, ?, 'submission_status', ?)");
-            $notifStmt->execute([$user_id, $tool_id, $notifMessage]);
-
-            if ($newStatus === 'pending') {
-                $adminStmt = $pdo->query("SELECT id FROM users WHERE role_id = 1");
-                $adminNotif = $pdo->prepare("INSERT INTO notifications (user_id, tool_id, type, message) VALUES (?, ?, 'admin_message', ?)");
-                foreach ($adminStmt->fetchAll() as $admin) {
-                    $adminNotif->execute([$admin['id'], $tool_id, "Correction envoyee pour l outil : '$name'."]);
-                }
-            }
-
-            $pdo->commit();
-
-            echo json_encode([
-                'success' => true,
-                'message' => $newStatus === 'approved'
-                    ? 'Correction validee automatiquement. Outil publie.'
-                    : 'Correction recue. L outil retourne en attente de validation administrateur.',
-                'tool_id' => $tool_id,
-                'status' => $newStatus,
-                'validation' => $validation
-            ]);
+            echo json_encode(['success' => true, 'message' => "Correction envoyée. L'outil est de nouveau en attente de validation.", 'submission_id' => $tool_id]);
         } catch (\PDOException $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Erreur serveur lors de la correction : ' . $e->getMessage()]);
         }
@@ -628,401 +704,6 @@ class ToolController {
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Erreur serveur lors de la soumission de l avis : ' . $e->getMessage()]);
         }
-    }
-
-    public static function runAutoValidation(string $name, string $website_url, string $short_desc, string $long_desc): array {
-        if (!filter_var($website_url, FILTER_VALIDATE_URL)) {
-            return self::validationError('Format URL invalide. Exemple attendu : https://monoutil.com.');
-        }
-
-        $scheme = strtolower((string)parse_url($website_url, PHP_URL_SCHEME));
-        if (!in_array($scheme, ['http', 'https'], true)) {
-            return self::validationError('L URL doit commencer par http:// ou https://.');
-        }
-
-        $urlStatus = self::checkUrlReachability($website_url);
-        if (!$urlStatus['reachable']) {
-            return self::validationError('URL inaccessible. Le site doit repondre avec un code HTTP 200, 301, 302, 403 ou 405.');
-        }
-
-        $shortLength = mb_strlen($short_desc);
-        if ($shortLength < 20 || $shortLength > 250) {
-            return self::validationError('Description courte invalide : elle doit contenir entre 20 et 250 caracteres.');
-        }
-
-        if (mb_strlen($long_desc) < 80) {
-            return self::validationError('Description longue insuffisante : minimum 80 caracteres.');
-        }
-
-        if (self::containsPlaceholderText($name . ' ' . $short_desc . ' ' . $long_desc)) {
-            return self::validationError('Texte placeholder detecte : lorem, ipsum, todo, test, azerty, qwerty, xxx, aaa ou repetitions abusives.');
-        }
-
-        if (!self::isValidToolName($name)) {
-            return self::validationError('Nom invalide : il doit contenir au moins 2 lettres alphabetiques et ne pas etre une repetition abusive.');
-        }
-
-        $domainCheck = self::isNameCoherentWithDomain($name, $website_url);
-
-        return [
-            'passed' => true,
-            'auto_approve' => $domainCheck['matched'],
-            'status' => $domainCheck['matched'] ? 'approved' : 'pending',
-            'message' => $domainCheck['matched']
-                ? 'Validation automatique reussie : le nom est coherent avec le domaine.'
-                : 'Validation automatique reussie, mais la coherence nom/domaine doit etre verifiee par un administrateur.',
-            'url_http_code' => $urlStatus['http_code'],
-            'domain_check' => $domainCheck
-        ];
-    }
-
-    private static function validationError($message): array {
-        return ['passed' => false, 'auto_approve' => false, 'status' => 'rejected', 'error' => $message];
-    }
-
-    private static function checkUrlReachability($url): array {
-        $allowedCodes = [200, 301, 302, 403, 405];
-        $result = ['reachable' => false, 'http_code' => 0, 'error' => null];
-
-        if (!function_exists('curl_init')) {
-            $headers = @get_headers($url, 1);
-            if (is_array($headers) && isset($headers[0]) && preg_match('/\s(\d{3})\s/', $headers[0], $matches)) {
-                $code = (int)$matches[1];
-                $result['http_code'] = $code;
-                $result['reachable'] = in_array($code, $allowedCodes, true);
-            } else {
-                $result['error'] = 'Impossible de lire les en-tetes HTTP.';
-            }
-            return $result;
-        }
-
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_NOBODY => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_TIMEOUT => 10,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_USERAGENT => 'DaleelAI-Validator/1.0'
-        ]);
-
-        curl_exec($ch);
-        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-
-        $result['http_code'] = $code;
-        $result['error'] = $error ?: null;
-        $result['reachable'] = in_array($code, $allowedCodes, true);
-        return $result;
-    }
-
-    private static function containsPlaceholderText($text): bool {
-        $patterns = [
-            '/\b(lorem|ipsum|dolor|sit\s+amet)\b/i',
-            '/\b(todo|fixme|placeholder|changeme|dummy)\b/i',
-            '/\b(test|testing|testtest)\b/i',
-            '/(azerty|qwerty|asdf|qwer|zxcv|qsdf|hjkl|uiop)/i',
-            '/\b(xxx+|aaa+|bbb+|ccc+|zzz+)\b/i',
-            '/(.)\1{4,}/u'
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $text)) {
-                return true;
-            }
-        }
-
-        $words = preg_split('/\s+/', $text);
-        foreach ($words as $word) {
-            if (mb_strlen($word) > 35 && !filter_var($word, FILTER_VALIDATE_URL)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static function isValidToolName($name): bool {
-        if (preg_match_all('/[a-zA-Z]/', $name) < 2) {
-            return false;
-        }
-
-        if (preg_match('/(.)\1{3,}/u', $name)) {
-            return false;
-        }
-
-        $normalized = preg_replace('/[^a-zA-Z0-9]/', '', strtolower($name));
-        if ($normalized === '' || preg_match('/^(.)\1+$/', $normalized)) {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static function isNameCoherentWithDomain($name, $url): array {
-        $trustedDomains = ['openai.com', 'google.com', 'microsoft.com', 'anthropic.com'];
-        $host = strtolower((string)parse_url($url, PHP_URL_HOST));
-        $host = preg_replace('/^www\./', '', $host);
-
-        foreach ($trustedDomains as $trustedDomain) {
-            if ($host === $trustedDomain || substr($host, -strlen('.' . $trustedDomain)) === '.' . $trustedDomain) {
-                return ['matched' => true, 'reason' => 'Domaine connu accepte automatiquement.', 'domain' => $host];
-            }
-        }
-
-        $domainText = preg_replace('/[^a-z0-9]+/i', ' ', $host);
-        $tokens = preg_split('/[^a-z0-9]+/i', strtolower($name), -1, PREG_SPLIT_NO_EMPTY);
-        $ignored = ['ai', 'ia', 'app', 'tool', 'tools', 'by', 'the', 'for', 'assistant'];
-
-        foreach ($tokens as $token) {
-            if (strlen($token) < 3 || in_array($token, $ignored, true)) {
-                continue;
-            }
-
-            if (strpos($domainText, $token) !== false) {
-                return ['matched' => true, 'reason' => "Le mot '$token' du nom apparait dans le domaine.", 'domain' => $host];
-            }
-        }
-
-        return ['matched' => false, 'reason' => 'Aucun mot significatif du nom ne figure dans le domaine.', 'domain' => $host];
-    }
-
-    private static function ensureSubmissionAttemptsTable($pdo): void {
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS submission_attempts (
-                attempt_key CHAR(32) PRIMARY KEY,
-                user_id INT NOT NULL,
-                website_url VARCHAR(255) NOT NULL,
-                tool_name VARCHAR(100) NOT NULL,
-                attempts_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
-                last_error VARCHAR(500) NULL,
-                rejected_until DATETIME NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_submission_attempts_user (user_id),
-                INDEX idx_submission_attempts_rejected_until (rejected_until)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        ");
-
-        $columns = self::getSubmissionAttemptColumns($pdo);
-        $missingColumns = [
-            'attempt_key' => "ALTER TABLE submission_attempts ADD COLUMN attempt_key CHAR(32) NULL",
-            'user_id' => "ALTER TABLE submission_attempts ADD COLUMN user_id INT NULL",
-            'website_url' => "ALTER TABLE submission_attempts ADD COLUMN website_url VARCHAR(255) NULL",
-            'tool_name' => "ALTER TABLE submission_attempts ADD COLUMN tool_name VARCHAR(100) NULL",
-            'attempts_count' => "ALTER TABLE submission_attempts ADD COLUMN attempts_count TINYINT UNSIGNED NOT NULL DEFAULT 0",
-            'last_error' => "ALTER TABLE submission_attempts ADD COLUMN last_error VARCHAR(500) NULL",
-            'rejected_until' => "ALTER TABLE submission_attempts ADD COLUMN rejected_until DATETIME NULL",
-            'created_at' => "ALTER TABLE submission_attempts ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-            'updated_at' => "ALTER TABLE submission_attempts ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
-        ];
-
-        foreach ($missingColumns as $column => $sql) {
-            if (!in_array($column, $columns, true)) {
-                $pdo->exec($sql);
-            }
-        }
-
-        self::ensureSubmissionAttemptIndex($pdo, 'idx_submission_attempts_key', 'attempt_key', true);
-        self::ensureSubmissionAttemptIndex($pdo, 'idx_submission_attempts_user', 'user_id', false);
-        self::ensureSubmissionAttemptIndex($pdo, 'idx_submission_attempts_rejected_until', 'rejected_until', false);
-    }
-
-    private static function getSubmissionAttemptColumns($pdo): array {
-        $stmt = $pdo->query("SHOW COLUMNS FROM submission_attempts");
-        $columns = [];
-
-        foreach ($stmt->fetchAll() as $column) {
-            $columns[] = $column['Field'];
-        }
-
-        return $columns;
-    }
-
-    private static function ensureSubmissionAttemptIndex($pdo, $indexName, $columnName, $unique): void {
-        $stmt = $pdo->prepare("SHOW INDEX FROM submission_attempts WHERE Key_name = ?");
-        $stmt->execute([$indexName]);
-
-        if ($stmt->fetch()) {
-            return;
-        }
-
-        $type = $unique ? 'UNIQUE INDEX' : 'INDEX';
-        $pdo->exec("ALTER TABLE submission_attempts ADD $type $indexName ($columnName)");
-    }
-
-    private static function buildAttemptKey($user_id, $website_url, $name): string {
-        return md5((int)$user_id . '|' . strtolower(trim($website_url)) . '|' . strtolower(trim($name)));
-    }
-
-    private static function buildCorrectionAttemptKey($user_id, $tool_id): string {
-        return md5((int)$user_id . '|correction|' . (int)$tool_id);
-    }
-
-    private static function getActiveAttemptBlock($pdo, $attemptKey) {
-        $stmt = $pdo->prepare("SELECT attempts_count, rejected_until FROM submission_attempts WHERE attempt_key = ?");
-        $stmt->execute([$attemptKey]);
-        $row = $stmt->fetch();
-
-        if (!$row) {
-            return null;
-        }
-
-        if (!empty($row['rejected_until']) && strtotime($row['rejected_until']) > time()) {
-            return $row;
-        }
-
-        if (!empty($row['rejected_until']) && strtotime($row['rejected_until']) <= time()) {
-            self::clearSubmissionAttempt($pdo, $attemptKey);
-        }
-
-        return null;
-    }
-
-    private static function failSubmissionAttempt($pdo, $attemptKey, $user_id, $website_url, $name, $message): void {
-        $stmt = $pdo->prepare("SELECT attempts_count FROM submission_attempts WHERE attempt_key = ?");
-        $stmt->execute([$attemptKey]);
-        $row = $stmt->fetch();
-        $attempts = $row ? ((int)$row['attempts_count'] + 1) : 1;
-        $rejectedUntilSql = $attempts >= 3 ? 'DATE_ADD(NOW(), INTERVAL 1 HOUR)' : 'NULL';
-
-        $sql = "
-            INSERT INTO submission_attempts
-                (attempt_key, user_id, website_url, tool_name, attempts_count, last_error, rejected_until)
-            VALUES
-                (?, ?, ?, ?, ?, ?, $rejectedUntilSql)
-            ON DUPLICATE KEY UPDATE
-                attempts_count = VALUES(attempts_count),
-                last_error = VALUES(last_error),
-                rejected_until = $rejectedUntilSql,
-                website_url = VALUES(website_url),
-                tool_name = VALUES(tool_name)
-        ";
-        $upsert = $pdo->prepare($sql);
-        $upsert->execute([$attemptKey, $user_id, $website_url, $name, $attempts, $message]);
-
-        if ($attempts >= 3) {
-            http_response_code(429);
-            echo json_encode([
-                'success' => false,
-                'status' => 'rejected',
-                'message' => 'Soumission rejetee definitivement pendant 1h apres 3 echecs. Derniere erreur : ' . $message,
-                'attempts' => $attempts,
-                'rejected_until_minutes' => 60
-            ]);
-            return;
-        }
-
-        http_response_code(400);
-        echo json_encode([
-            'success' => false,
-            'status' => 'rejected',
-            'message' => $message,
-            'attempts' => $attempts,
-            'remaining_attempts' => 3 - $attempts
-        ]);
-    }
-
-    private static function clearSubmissionAttempt($pdo, $attemptKey): void {
-        $stmt = $pdo->prepare("DELETE FROM submission_attempts WHERE attempt_key = ?");
-        $stmt->execute([$attemptKey]);
-    }
-
-    private static function generateUniqueSlug($pdo, $name): string {
-        $base = strtolower(trim(preg_replace('/[^A-Za-z0-9]+/', '-', $name), '-'));
-        if ($base === '') {
-            $base = 'outil';
-        }
-
-        $slug = $base;
-        $counter = 2;
-        $stmt = $pdo->prepare("SELECT 1 FROM ai_tools WHERE slug = ?");
-
-        while (true) {
-            $stmt->execute([$slug]);
-            if (!$stmt->fetch()) {
-                return $slug;
-            }
-            $slug = $base . '-' . $counter;
-            $counter++;
-        }
-    }
-
-    private static function generateUniqueSlugForTool($pdo, $name, $tool_id): string {
-        $base = strtolower(trim(preg_replace('/[^A-Za-z0-9]+/', '-', $name), '-'));
-        if ($base === '') {
-            $base = 'outil';
-        }
-
-        $slug = $base;
-        $counter = 2;
-        $stmt = $pdo->prepare("SELECT 1 FROM ai_tools WHERE slug = ? AND id <> ?");
-
-        while (true) {
-            $stmt->execute([$slug, $tool_id]);
-            if (!$stmt->fetch()) {
-                return $slug;
-            }
-            $slug = $base . '-' . $counter;
-            $counter++;
-        }
-    }
-
-    private static function insertToolRelations($pdo, $tool_id, $table, $column, $values): void {
-        if (empty($values) || !is_array($values)) {
-            return;
-        }
-
-        $allowed = [
-            'tool_categories' => 'category_id',
-            'tool_pricing' => 'pricing_id',
-            'tool_languages' => 'language_id'
-        ];
-
-        if (!isset($allowed[$table]) || $allowed[$table] !== $column) {
-            return;
-        }
-
-        $stmt = $pdo->prepare("INSERT INTO $table (tool_id, $column) VALUES (?, ?)");
-        foreach ($values as $value) {
-            $id = (int)$value;
-            if ($id > 0) {
-                $stmt->execute([$tool_id, $id]);
-            }
-        }
-    }
-
-    private static function replaceToolRelations($pdo, $tool_id, $table, $column, $values): void {
-        $allowed = [
-            'tool_categories' => 'category_id',
-            'tool_pricing' => 'pricing_id',
-            'tool_languages' => 'language_id'
-        ];
-
-        if (!isset($allowed[$table]) || $allowed[$table] !== $column) {
-            return;
-        }
-
-        $delete = $pdo->prepare("DELETE FROM $table WHERE tool_id = ?");
-        $delete->execute([$tool_id]);
-        self::insertToolRelations($pdo, $tool_id, $table, $column, $values);
-    }
-
-    private static function getRelationIds($pdo, $table, $column, $tool_id): array {
-        $allowed = [
-            'tool_categories' => 'category_id',
-            'tool_pricing' => 'pricing_id',
-            'tool_languages' => 'language_id'
-        ];
-
-        if (!isset($allowed[$table]) || $allowed[$table] !== $column) {
-            return [];
-        }
-
-        $stmt = $pdo->prepare("SELECT $column FROM $table WHERE tool_id = ?");
-        $stmt->execute([$tool_id]);
-        return array_map('intval', array_column($stmt->fetchAll(), $column));
     }
 
     private static function attachGlobalScore(array &$tool): void {

@@ -94,6 +94,14 @@ function requireAdmin($user) {
     }
 }
 
+// Routes ajoutées hors switch (contournement bug de matching)
+if ($route === '/api/tools/ai-validation' && $method === 'POST') {
+    $user = authenticate();
+    require_once __DIR__ . '/controllers/ToolController.php';
+    ToolController::aiValidate($input_data, $user['id']);
+    exit;
+}
+
 // REST Route Matching and Dispatching
 switch ($route) {
     // -----------------------------------------------------------------
@@ -182,6 +190,17 @@ switch ($route) {
         }
         break;
 
+    case '/api/tools/ai-validation':
+        if ($method === 'POST') {
+            $user = authenticate();
+            require_once __DIR__ . '/controllers/ToolController.php';
+            ToolController::aiValidate($input_data, $user['id']);
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'Méthode non autorisée. POST requis.']);
+        }
+        break;
+
     case '/api/tools/my-submissions':
         if ($method === 'GET') {
             $user = authenticate();
@@ -204,15 +223,17 @@ switch ($route) {
         }
         break;
 
-        case '/api/tools/update-status':
-    if ($method === 'POST') {
-        require_once __DIR__ . '/controllers/ToolController.php';
-        ToolController::updateStatus($input_data);
-    } else {
-        http_response_code(405);
-        echo json_encode(['success' => false, 'message' => 'Méthode non autorisée.']);
-    }
-    break;
+    case '/api/tools/update-status':
+        if ($method === 'POST') {
+            $user = authenticate();
+            requireAdmin($user);
+            require_once __DIR__ . '/controllers/ToolController.php';
+            ToolController::updateStatus($input_data);
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'Méthode non autorisée.']);
+        }
+        break;
 
     case '/api/tools/favorite':
         if ($method === 'POST') {
