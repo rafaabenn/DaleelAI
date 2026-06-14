@@ -15,7 +15,7 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
         short_description: '',
         long_description: '',
         category_id: '1',
-        pricings: ['1'],
+        pricing: '1',
         languages: [],
         gdpr_compliant: 0,
         has_api: 0,
@@ -109,7 +109,7 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
             short_description: '',
             long_description: '',
             category_id: '1',
-            pricings: ['1'],
+            pricing: '1',
             languages: [],
             gdpr_compliant: 0,
             has_api: 0,
@@ -130,7 +130,7 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
             short_description: submission.short_description || '',
             long_description: submission.long_description || '',
             category_id: String(submission.category_ids?.[0] || '1'),
-            pricings: (submission.pricing_ids || []).map(String),
+            pricing: String(submission.pricing_ids?.[0] || '1'),
             languages: (submission.language_ids || []).map(String),
             gdpr_compliant: Number(submission.gdpr_compliant) ? 1 : 0,
             has_api: Number(submission.has_api) ? 1 : 0,
@@ -151,7 +151,7 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
         tool_id: editingSubmissionId,
         long_description: submitData.long_description,
         categories: [submitData.category_id],
-        pricings: submitData.pricings,
+        pricings: submitData.pricing ? [submitData.pricing] : [],
         languages: submitData.languages
     });
 
@@ -193,8 +193,8 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
         setSubmitError('');
         setAiValidationResult(null);
 
-        if (!submitData.pricings.length) {
-            setSubmitError('Veuillez sélectionner au moins un modèle de prix.');
+        if (!submitData.pricing) {
+            setSubmitError('Veuillez sélectionner un modèle de prix.');
             return;
         }
 
@@ -588,32 +588,36 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
                                 </select>
                             </div>
 
-                            {/* Pricing */}
+                            {/* Pricing — choix unique */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', gridColumn: '1 / -1' }}>
                                 <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Tag size={12} /> Modèle de prix *
+                                    <Tag size={12} /> Modèle de prix * <span style={{ fontWeight: 400, color: '#6b7280', fontSize: '0.75rem' }}>(un seul choix)</span>
                                 </label>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                                     {filterOptions.pricing_models.map(price => {
                                         const value = String(price.id);
-                                        const checked = submitData.pricings.includes(value);
+                                        const selected = submitData.pricing === value;
                                         return (
                                             <label key={price.id} style={{
                                                 display: 'inline-flex',
                                                 alignItems: 'center',
                                                 gap: '8px',
-                                                padding: '9px 12px',
+                                                padding: '9px 16px',
                                                 borderRadius: '10px',
-                                                border: checked ? '1px solid rgba(168,85,247,0.55)' : '1px solid rgba(255,255,255,0.10)',
-                                                background: checked ? 'rgba(168,85,247,0.16)' : 'rgba(255,255,255,0.03)',
-                                                color: checked ? '#f3e8ff' : '#cbd5e1',
+                                                border: selected ? '1px solid rgba(168,85,247,0.7)' : '1px solid rgba(255,255,255,0.10)',
+                                                background: selected ? 'rgba(168,85,247,0.2)' : 'rgba(255,255,255,0.03)',
+                                                color: selected ? '#f3e8ff' : '#cbd5e1',
                                                 fontSize: '0.84rem',
-                                                cursor: 'pointer'
+                                                cursor: 'pointer',
+                                                fontWeight: selected ? 600 : 400,
+                                                transition: 'all 0.15s ease'
                                             }}>
                                                 <input
-                                                    type="checkbox"
-                                                    checked={checked}
-                                                    onChange={() => toggleSubmitArrayValue('pricings', value)}
+                                                    type="radio"
+                                                    name="pricing"
+                                                    value={value}
+                                                    checked={selected}
+                                                    onChange={() => setSubmitData(p => ({ ...p, pricing: value }))}
                                                     style={{ accentColor: '#a855f7' }}
                                                 />
                                                 {price.name}
