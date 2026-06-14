@@ -17,6 +17,9 @@ class AdminController {
             $pendingSubmissions = (int)$pdo->query("SELECT COUNT(*) FROM tool_submissions WHERE status IN ('pending', 'processing')")->fetchColumn();
             $totalReviews = (int)$pdo->query("SELECT COUNT(*) FROM reviews WHERE status = 'approved'")->fetchColumn();
             $totalUsers = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role_id = 2")->fetchColumn();
+            $totalClicks = (int)$pdo->query("SELECT COUNT(*) FROM clicks_logs")->fetchColumn();
+            $avgRating = round((float)$pdo->query("SELECT COALESCE(AVG(average_rating), 0) FROM ai_tools WHERE status = 'approved' AND average_rating > 0")->fetchColumn(), 1);
+            $recentTools = $pdo->query("SELECT id, name, created_at FROM ai_tools WHERE status = 'approved' ORDER BY created_at DESC LIMIT 5")->fetchAll();
 
             // 1. Popular Tools (Most Favorited)
             $popularTools = $pdo->query("
@@ -52,7 +55,10 @@ class AdminController {
                     'total_tools' => $totalTools,
                     'pending_submissions' => $pendingSubmissions,
                     'total_reviews' => $totalReviews,
-                    'total_users' => $totalUsers
+                    'total_users' => $totalUsers,
+                    'total_clicks' => $totalClicks,
+                    'avg_rating' => $avgRating,
+                    'recent_tools' => $recentTools
                 ],
                 'popular_tools' => $popularTools,
                 'telemetry' => $telemetry,

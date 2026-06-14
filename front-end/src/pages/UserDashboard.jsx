@@ -251,7 +251,7 @@ export default function UserDashboard({ user, favorites, onToggleFav, setPage, o
         }
     };
 
-    const correctionSubmissions = userSubmissions.filter(sub => sub.status === 'processing');
+    const correctionSubmissions = userSubmissions.filter(sub => sub.status === 'processing' || sub.status === 'rejected');
 
     return (
         <div style={{ position: 'relative' }}>

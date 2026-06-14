@@ -44,7 +44,7 @@ export default function ToolDetailModal({ toolId, onClose, user, isFavorited, on
         try {
             const res = await api.tools.submitReview(tool.id, ratingInput, commentInput);
             if (res.success) {
-                setReviewSuccess("Votre avis a été soumis avec succès et attend la validation d'un modérateur !");
+                setReviewSuccess("Votre avis a été soumis et sera visible après validation par un modérateur.");
                 setCommentInput('');
                 // Reload tool info to see if reviews update (though pending ones won't show until admin validates them)
                 setTimeout(() => {
@@ -157,8 +157,8 @@ export default function ToolDetailModal({ toolId, onClose, user, isFavorited, on
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {user && (
-                            <button 
+                        {user && user.role_id !== 1 && (
+                            <button
                                 onClick={() => onToggleFav(tool.id)}
                                 className="btn-secondary"
                                 style={{
@@ -197,7 +197,7 @@ export default function ToolDetailModal({ toolId, onClose, user, isFavorited, on
                         <div>
                             <h3 style={{ fontSize: '1.1rem', color: 'white', marginBottom: '12px', fontWeight: 700 }}>Description de l'Outil</h3>
                             <p style={{ fontSize: '0.92rem', color: '#e5e7eb', lineHeight: '1.7', whiteSpace: 'pre-line' }}>
-                                {tool.full_description || tool.short_description}
+                                {tool.long_description || tool.short_description}
                             </p>
                         </div>
 
@@ -309,77 +309,29 @@ export default function ToolDetailModal({ toolId, onClose, user, isFavorited, on
                         </div>
                     </div>
 
-                    {/* Right Panel: Metadatas, Actions, trial redirect */}
+                    {/* Right Panel: Metadatas & Actions */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                        {/* Primary Call to Action: FREE TRIAL */}
-                        <div className="glass-panel" style={{
-                            padding: '24px',
-                            background: 'linear-gradient(135deg, rgba(20, 21, 33, 0.9) 0%, rgba(40, 20, 70, 0.9) 100%)',
-                            border: '1px solid rgba(139, 92, 246, 0.3)',
-                            borderRadius: '16px',
-                            textAlign: 'center'
-                        }}>
-                            <h4 style={{ fontSize: '1rem', color: 'white', fontWeight: 700, marginBottom: '8px' }}>Tester l'Outil</h4>
-                            <p style={{ fontSize: '0.8rem', color: '#c084fc', marginBottom: '18px' }}>
-                                Accédez immédiatement aux fonctionnalités d'évaluation.
-                            </p>
-
-                            {user ? (
-                                <button 
-                                    onClick={() => onOpenTrial(tool)}
-                                    className="btn-success"
-                                    style={{
-                                        width: '100%',
-                                        justifyContent: 'center',
-                                        padding: '12px',
-                                        fontSize: '0.92rem',
-                                        borderRadius: '10px'
-                                    }}
-                                >
-                                    <span>Lancer l'Essai Gratuit</span>
-                                    <ExternalLink size={16} />
-                                </button>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    <button 
-                                        disabled
-                                        className="btn-secondary"
-                                        style={{
-                                            width: '100%',
-                                            justifyContent: 'center',
-                                            padding: '12px',
-                                            fontSize: '0.92rem',
-                                            borderRadius: '10px',
-                                            opacity: 0.6,
-                                            cursor: 'not-allowed'
-                                        }}
-                                    >
-                                        Essai Gratuit (Inscrit requis)
-                                    </button>
-                                    <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>
-                                        Créez un compte pour profiter de l'intégration directe.
-                                    </span>
-                                </div>
-                            )}
-
-                            <a 
-                                href={tool.website_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    fontSize: '0.78rem',
-                                    color: '#9ca3af',
-                                    marginTop: '14px',
-                                    textDecoration: 'underline'
-                                }}
-                            >
-                                <Globe size={12} />
-                                Site Officiel
-                            </a>
-                        </div>
+                        {/* Site Officiel CTA */}
+                        <a
+                            href={tool.website_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-primary"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                padding: '14px',
+                                borderRadius: '12px',
+                                textDecoration: 'none',
+                                fontSize: '0.92rem',
+                                fontWeight: 600
+                            }}
+                        >
+                            <Globe size={16} />
+                            Accéder au Site Officiel
+                        </a>
 
                         {/* Specs Panel */}
                         <div className="glass-card" style={{ padding: '20px', background: 'rgba(255,255,255,0.02)' }}>

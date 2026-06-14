@@ -26,10 +26,16 @@ export default function AdminDashboard({ user }) {
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [createData, setCreateData] = useState({
         name: '', website_url: '', trial_url: '', logo_url: '',
-        short_description: '', full_description: '',
-        gdpr_compliant: 0, has_api: 0, has_mobile_app: 0
+        short_description: '', long_description: '',
+        gdpr_compliant: 0, has_api: 0, has_mobile_app: 0,
+        category_id: '1', pricing: '1', languages: []
     });
     const [actionMsg, setActionMsg] = useState({ text: '', type: '' });
+    const [filterOptions, setFilterOptions] = useState({ categories: [], pricing_models: [], languages: [] });
+    const [createAiValidating, setCreateAiValidating] = useState(false);
+    const [createAiResult, setCreateAiResult] = useState(null);
+    const [createAiBlocked, setCreateAiBlocked] = useState(false);
+    const [createAiAttempts, setCreateAiAttempts] = useState(0);
 
     const loadTabData = async (tab) => {
         setLoading(true);
@@ -48,10 +54,12 @@ export default function AdminDashboard({ user }) {
                     const revRes = await api.admin.getReviews();
                     if (revRes.success) setReviews(revRes.reviews);
                     break;
-                case 'crud':
-                    const tRes = await api.tools.getTools({});
+                case 'crud': {
+                    const [tRes, fRes] = await Promise.all([api.tools.getTools({}), api.tools.getFilters()]);
                     if (tRes.success) setTools(tRes.tools);
+                    if (fRes.success) setFilterOptions({ categories: fRes.categories || [], pricing_models: fRes.pricing_models || [], languages: fRes.languages || [] });
                     break;
+                }
             }
         } catch (err) {
             console.error("Erreur chargement admin:", err);
@@ -106,23 +114,40 @@ export default function AdminDashboard({ user }) {
         }
     };
 
-    // ── CRUD: Create ──
+    // ── CRUD: Create (with AI validation, direct insert to ai_tools) ──
     const handleCreateTool = async (e) => {
         e.preventDefault();
+        if (createAiBlocked) { showMessage("Limite de 3 tentatives atteinte. Corrigez les champs signalés.", 'error'); return; }
+        setCreateAiValidating(true);
         try {
-            const res = await api.admin.createTool(createData);
+            const payload = {
+                ...createData,
+                categories: [createData.category_id],
+                pricings: createData.pricing ? [createData.pricing] : [],
+                languages: createData.languages
+            };
+            const aiRes = await api.tools.aiValidate(payload);
+            if (!aiRes.valid) {
+                const serverAttempt = aiRes.attempt ?? (createAiAttempts + 1);
+                setCreateAiAttempts(serverAttempt);
+                setCreateAiResult({ valid: false, summary: aiRes.summary, corrections: aiRes.corrections || [], improved_values: aiRes.improved_values });
+                if (serverAttempt >= 3) setCreateAiBlocked(true);
+                return;
+            }
+            const res = await api.admin.createTool({ ...payload, ai_summary: aiRes.summary || '' });
             if (res.success) {
-                showMessage("Outil créé avec succès et ajouté au catalogue !");
+                showMessage("Outil validé par l'IA et ajouté au catalogue !");
                 setShowCreateForm(false);
-                setCreateData({
-                    name: '', website_url: '', trial_url: '', logo_url: '',
-                    short_description: '', full_description: '',
-                    gdpr_compliant: 0, has_api: 0, has_mobile_app: 0
-                });
+                setCreateData({ name: '', website_url: '', trial_url: '', logo_url: '', short_description: '', long_description: '', gdpr_compliant: 0, has_api: 0, has_mobile_app: 0, category_id: '1', pricing: '1', languages: [] });
+                setCreateAiResult(null);
+                setCreateAiAttempts(0);
+                setCreateAiBlocked(false);
                 loadTabData('crud');
             }
         } catch (err) {
             showMessage(err.message || "Erreur de création.", 'error');
+        } finally {
+            setCreateAiValidating(false);
         }
     };
 
@@ -549,84 +574,165 @@ export default function AdminDashboard({ user }) {
 
                     {/* Create Form */}
                     {showCreateForm && (
-                        <form onSubmit={handleCreateTool} className="glass-panel" style={{
-                            padding: '24px',
-                            background: 'rgba(16,185,129,0.03)',
-                            border: '1px solid rgba(16,185,129,0.2)',
-                            display: 'grid',
-                            gridTemplateColumns: '1fr 1fr',
-                            gap: '16px'
-                        }}>
-                            <h4 style={{ gridColumn: '1 / -1', color: 'white', fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <PlusCircle size={18} color="#10b981" /> Créer un Nouvel Outil
-                            </h4>
+                        <>
+                            {/* AI Validation Result Panel */}
+                            {createAiResult && !createAiResult.valid && (
+                                <div style={{ marginBottom: '16px', padding: '16px', borderRadius: '12px', background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.28)', color: '#fde68a' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                        <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
+                                            <AlertTriangle size={16} color="#f59e0b" /> Validation IA — Corrections requises
+                                        </div>
+                                        <span style={{ fontSize: '0.75rem', color: '#fbbf24', background: 'rgba(245,158,11,0.15)', borderRadius: '999px', padding: '3px 10px' }}>
+                                            Tentative {createAiAttempts}/3
+                                        </span>
+                                    </div>
+                                    {createAiResult.summary && <p style={{ margin: '0 0 10px', fontSize: '0.85rem' }}>{createAiResult.summary}</p>}
+                                    {createAiResult.corrections?.length > 0 && (
+                                        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#fcd34d' }}>
+                                            {createAiResult.corrections.map((c, i) => (
+                                                <li key={i} style={{ marginBottom: '4px' }}>
+                                                    <strong style={{ color: '#fde68a' }}>{c.field} :</strong> {c.reason}
+                                                    {c.suggestion && <span style={{ color: '#d1fae5' }}> → {c.suggestion}</span>}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                    {createAiResult.improved_values && (
+                                        <button type="button" onClick={() => setCreateData(p => ({ ...p, short_description: createAiResult.improved_values.short_description || p.short_description, long_description: createAiResult.improved_values.long_description || p.long_description }))}
+                                            style={{ marginTop: '10px', fontSize: '0.8rem', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.4)', background: 'rgba(16,185,129,0.1)', color: '#6ee7b7', cursor: 'pointer' }}>
+                                            Appliquer les suggestions de l'IA
+                                        </button>
+                                    )}
+                                </div>
+                            )}
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>Nom *</label>
-                                <input type="text" className="input-field" value={createData.name}
-                                    onChange={(e) => setCreateData(p => ({ ...p, name: e.target.value }))}
-                                    placeholder="Nom de l'outil" required />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>URL du Site *</label>
-                                <input type="url" className="input-field" value={createData.website_url}
-                                    onChange={(e) => setCreateData(p => ({ ...p, website_url: e.target.value }))}
-                                    placeholder="https://..." required />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>URL Essai Gratuit</label>
-                                <input type="url" className="input-field" value={createData.trial_url}
-                                    onChange={(e) => setCreateData(p => ({ ...p, trial_url: e.target.value }))}
-                                    placeholder="https://..." />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>URL Logo</label>
-                                <input type="url" className="input-field" value={createData.logo_url}
-                                    onChange={(e) => setCreateData(p => ({ ...p, logo_url: e.target.value }))}
-                                    placeholder="https://..." />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: '1 / -1' }}>
-                                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>Description Courte *</label>
-                                <input type="text" className="input-field" value={createData.short_description}
-                                    onChange={(e) => setCreateData(p => ({ ...p, short_description: e.target.value }))}
-                                    placeholder="Une phrase résumant l'outil" required />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: '1 / -1' }}>
-                                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>Description Complète</label>
-                                <textarea rows="3" className="input-field" value={createData.full_description}
-                                    onChange={(e) => setCreateData(p => ({ ...p, full_description: e.target.value }))}
-                                    placeholder="Description détaillée..."
-                                    style={{ resize: 'vertical' }} />
-                            </div>
+                            <form onSubmit={handleCreateTool} className="glass-panel" style={{
+                                padding: '24px',
+                                background: 'rgba(16,185,129,0.03)',
+                                border: '1px solid rgba(16,185,129,0.2)',
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: '16px'
+                            }}>
+                                <h4 style={{ gridColumn: '1 / -1', color: 'white', fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <PlusCircle size={18} color="#10b981" /> Créer un Nouvel Outil
+                                </h4>
 
-                            <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '24px' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#e5e7eb', cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={createData.gdpr_compliant === 1}
-                                        onChange={(e) => setCreateData(p => ({ ...p, gdpr_compliant: e.target.checked ? 1 : 0 }))}
-                                        style={{ accentColor: '#a855f7', width: '16px', height: '16px' }} />
-                                    <ShieldCheck size={14} color="#10b981" /> RGPD
-                                </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#e5e7eb', cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={createData.has_api === 1}
-                                        onChange={(e) => setCreateData(p => ({ ...p, has_api: e.target.checked ? 1 : 0 }))}
-                                        style={{ accentColor: '#a855f7', width: '16px', height: '16px' }} />
-                                    <Cpu size={14} color="#3b82f6" /> API
-                                </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#e5e7eb', cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={createData.has_mobile_app === 1}
-                                        onChange={(e) => setCreateData(p => ({ ...p, has_mobile_app: e.target.checked ? 1 : 0 }))}
-                                        style={{ accentColor: '#8b5cf6', width: '16px', height: '16px' }} />
-                                    <Smartphone size={14} color="#f59e0b" /> Mobile
-                                </label>
-                            </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>Nom *</label>
+                                    <input type="text" className="input-field" value={createData.name}
+                                        onChange={(e) => setCreateData(p => ({ ...p, name: e.target.value }))}
+                                        placeholder="Nom de l'outil" required />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>URL du Site *</label>
+                                    <input type="url" className="input-field" value={createData.website_url}
+                                        onChange={(e) => setCreateData(p => ({ ...p, website_url: e.target.value }))}
+                                        placeholder="https://..." required />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>URL Essai Gratuit</label>
+                                    <input type="url" className="input-field" value={createData.trial_url}
+                                        onChange={(e) => setCreateData(p => ({ ...p, trial_url: e.target.value }))}
+                                        placeholder="https://..." />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>URL Logo</label>
+                                    <input type="url" className="input-field" value={createData.logo_url}
+                                        onChange={(e) => setCreateData(p => ({ ...p, logo_url: e.target.value }))}
+                                        placeholder="https://..." />
+                                </div>
 
-                            <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                                <button type="button" className="btn-secondary" onClick={() => setShowCreateForm(false)}>Annuler</button>
-                                <button type="submit" className="btn-success">
-                                    <Save size={14} /> Créer l'Outil
-                                </button>
-                            </div>
-                        </form>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>Catégorie *</label>
+                                    <select className="input-field" value={createData.category_id}
+                                        onChange={(e) => setCreateData(p => ({ ...p, category_id: e.target.value }))}
+                                        style={{ cursor: 'pointer' }} required>
+                                        {filterOptions.categories.map(cat => (
+                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: '1 / -1' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>
+                                        Modèle de prix * <span style={{ fontWeight: 400, color: '#6b7280', fontSize: '0.73rem' }}>(un seul choix)</span>
+                                    </label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                        {filterOptions.pricing_models.map(price => {
+                                            const val = String(price.id);
+                                            const sel = createData.pricing === val;
+                                            return (
+                                                <label key={price.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', border: sel ? '1px solid rgba(168,85,247,0.7)' : '1px solid rgba(255,255,255,0.10)', background: sel ? 'rgba(168,85,247,0.2)' : 'transparent', color: sel ? '#f3e8ff' : '#cbd5e1', fontWeight: sel ? 600 : 400 }}>
+                                                    <input type="radio" name="create_pricing" value={val} checked={sel} onChange={() => setCreateData(p => ({ ...p, pricing: val }))} style={{ accentColor: '#a855f7' }} />
+                                                    {price.name}
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: '1 / -1' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>Langues disponibles</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                        {filterOptions.languages.map(lang => {
+                                            const val = String(lang.id);
+                                            const checked = createData.languages.includes(val);
+                                            return (
+                                                <label key={lang.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', border: checked ? '1px solid rgba(59,130,246,0.55)' : '1px solid rgba(255,255,255,0.10)', background: checked ? 'rgba(59,130,246,0.15)' : 'transparent', color: checked ? '#dbeafe' : '#cbd5e1' }}>
+                                                    <input type="checkbox" checked={checked}
+                                                        onChange={() => setCreateData(p => ({ ...p, languages: p.languages.includes(val) ? p.languages.filter(v => v !== val) : [...p.languages, val] }))}
+                                                        style={{ accentColor: '#3b82f6' }} />
+                                                    {lang.name}
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: '1 / -1' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>Description Courte *</label>
+                                    <input type="text" className="input-field" value={createData.short_description}
+                                        onChange={(e) => setCreateData(p => ({ ...p, short_description: e.target.value }))}
+                                        placeholder="Une phrase résumant l'outil" required />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: '1 / -1' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>Description Complète</label>
+                                    <textarea rows="3" className="input-field" value={createData.long_description}
+                                        onChange={(e) => setCreateData(p => ({ ...p, long_description: e.target.value }))}
+                                        placeholder="Description détaillée..."
+                                        style={{ resize: 'vertical' }} />
+                                </div>
+
+                                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '24px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#e5e7eb', cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={createData.gdpr_compliant === 1}
+                                            onChange={(e) => setCreateData(p => ({ ...p, gdpr_compliant: e.target.checked ? 1 : 0 }))}
+                                            style={{ accentColor: '#a855f7', width: '16px', height: '16px' }} />
+                                        <ShieldCheck size={14} color="#10b981" /> RGPD
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#e5e7eb', cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={createData.has_api === 1}
+                                            onChange={(e) => setCreateData(p => ({ ...p, has_api: e.target.checked ? 1 : 0 }))}
+                                            style={{ accentColor: '#a855f7', width: '16px', height: '16px' }} />
+                                        <Cpu size={14} color="#3b82f6" /> API
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#e5e7eb', cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={createData.has_mobile_app === 1}
+                                            onChange={(e) => setCreateData(p => ({ ...p, has_mobile_app: e.target.checked ? 1 : 0 }))}
+                                            style={{ accentColor: '#8b5cf6', width: '16px', height: '16px' }} />
+                                        <Smartphone size={14} color="#f59e0b" /> Mobile
+                                    </label>
+                                </div>
+
+                                <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                    <button type="button" className="btn-secondary" onClick={() => { setShowCreateForm(false); setCreateAiResult(null); setCreateAiAttempts(0); setCreateAiBlocked(false); }}>Annuler</button>
+                                    <button type="submit" className="btn-success" disabled={createAiValidating || createAiBlocked}>
+                                        {createAiValidating ? 'Validation IA...' : <><Save size={14} /> Valider & Créer l'Outil</>}
+                                    </button>
+                                </div>
+                            </form>
+                        </>
                     )}
 
                     {/* Edit Modal Form */}
@@ -681,8 +787,8 @@ export default function AdminDashboard({ user }) {
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: '1 / -1' }}>
                                     <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#d946ef' }}>Description Complète</label>
-                                    <textarea rows="3" className="input-field" value={editTool.full_description || ''}
-                                        onChange={(e) => setEditTool(p => ({ ...p, full_description: e.target.value }))}
+                                    <textarea rows="3" className="input-field" value={editTool.long_description || ''}
+                                        onChange={(e) => setEditTool(p => ({ ...p, long_description: e.target.value }))}
                                         style={{ resize: 'vertical' }} />
                                 </div>
 

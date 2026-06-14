@@ -683,7 +683,7 @@ class ToolController {
 
             $pdo->beginTransaction();
 
-            $ins_stmt = $pdo->prepare("INSERT INTO reviews (user_id, tool_id, rating, comment, status) VALUES (?, ?, ?, ?, 'approved')");
+            $ins_stmt = $pdo->prepare("INSERT INTO reviews (user_id, tool_id, rating, comment, status) VALUES (?, ?, ?, ?, 'pending')");
             $ins_stmt->execute([$user_id, $tool_id, $rating, $comment]);
 
             $calc_stmt = $pdo->prepare("SELECT AVG(rating) AS avg_rating FROM reviews WHERE tool_id = ? AND status = 'approved'");

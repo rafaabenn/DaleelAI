@@ -119,8 +119,8 @@ export default function ToolCard({ tool, isFavorited, onToggleFav, onSelect, use
                         </div>
 
                         {/* Favorite button if user logged in */}
-                        {user && (
-                            <button 
+                        {user && user.role_id !== 1 && (
+                            <button
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     onToggleFav(tool.id);

@@ -21,6 +21,8 @@ export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
     const [stats, setStats] = useState({ total_tools: 0, avg_rating: 0 });
     const [recommended, setRecommended] = useState([]);
     const [loadingRec, setLoadingRec] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const TOOLS_PER_PAGE = 12;
 
     useEffect(() => {
         // Retrieve some basic quick statistics for the header
@@ -54,6 +56,7 @@ export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
 
     const loadTools = async () => {
         setLoading(true);
+        setCurrentPage(1);
         try {
             const res = await api.tools.getTools(filters);
             if (res.success) {
@@ -214,8 +217,8 @@ export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
                 {/* 2. Search & Tool Grid lists on right */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-                    {/* Section recommandations personnalisées */}
-                    {user && (loadingRec || recommended.length > 0) && (
+                    {/* Section recommandations personnalisées (masquée pour admin) */}
+                    {user && user.role_id !== 1 && (loadingRec || recommended.length > 0) && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <div style={{
@@ -369,18 +372,43 @@ export default function Home({ user, onOpenTrial, favorites, onToggleFav }) {
                             <span style={{ color: '#9ca3af', fontSize: '0.9rem' }}>Filtres & Classement pondéré en cours...</span>
                         </div>
                     ) : tools.length > 0 ? (
-                        <div className="cards-grid">
-                            {tools.map(tool => (
-                                <ToolCard 
-                                    key={tool.id} 
-                                    tool={tool} 
-                                    isFavorited={favorites.includes(tool.id)}
-                                    onToggleFav={onToggleFav}
-                                    onSelect={(id) => setSelectedToolId(id)}
-                                    user={user}
-                                />
-                            ))}
-                        </div>
+                        <>
+                            <div className="cards-grid">
+                                {tools.slice((currentPage - 1) * TOOLS_PER_PAGE, currentPage * TOOLS_PER_PAGE).map(tool => (
+                                    <ToolCard
+                                        key={tool.id}
+                                        tool={tool}
+                                        isFavorited={favorites.includes(tool.id)}
+                                        onToggleFav={onToggleFav}
+                                        onSelect={(id) => setSelectedToolId(id)}
+                                        user={user}
+                                    />
+                                ))}
+                            </div>
+                            {Math.ceil(tools.length / TOOLS_PER_PAGE) > 1 && (
+                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '16px' }}>
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="btn-secondary"
+                                        style={{ padding: '8px 18px', fontSize: '0.82rem', opacity: currentPage === 1 ? 0.4 : 1 }}
+                                    >
+                                        ← Précédent
+                                    </button>
+                                    <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
+                                        Page <strong style={{ color: 'white' }}>{currentPage}</strong> / {Math.ceil(tools.length / TOOLS_PER_PAGE)}
+                                    </span>
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(Math.ceil(tools.length / TOOLS_PER_PAGE), p + 1))}
+                                        disabled={currentPage === Math.ceil(tools.length / TOOLS_PER_PAGE)}
+                                        className="btn-secondary"
+                                        style={{ padding: '8px 18px', fontSize: '0.82rem', opacity: currentPage === Math.ceil(tools.length / TOOLS_PER_PAGE) ? 0.4 : 1 }}
+                                    >
+                                        Suivant →
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <div className="glass-panel" style={{
                             padding: '60px 40px',
